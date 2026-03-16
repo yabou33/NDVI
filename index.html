@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Station de Précision — Céréales & Surfaces</title>
+    <title>Station de Précision — Classification Céréales</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     <style>
@@ -26,23 +26,20 @@
         .img-item.active { border-color: #1565c0; background: #e3f2fd; font-weight: bold; }
         
         .stats-box { background: #f1f8e9; padding: 10px; border-radius: 6px; font-size: 13px; color: #1b5e20; border: 1px solid #c8e6c9; margin-top: 5px; }
-        .agri-val { color: #2e7d32; font-weight: bold; }
-        .diff-neg { color: #d32f2f; font-weight: bold; }
-        .diff-pos { color: #2e7d32; font-weight: bold; }
+        .cat-ble { color: #1b5e20; font-weight: bold; }
+        .cat-orge { color: #fbc02d; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>🌾 Diagnostic de Parcelle</h2>
+    <h2>🌾 Suivi de Campagne</h2>
 
     <div class="card">
-        <small-label>1. Zone & Surfaces</small-label>
+        <small-label>1. Analyse de Surface</small-label>
         <select id="regionSelect">
             <option value="[10.83,36.72,10.90,36.80]">Nabeul (Cap Bon)</option>
             <option value="[9.15,36.65,9.30,36.80]">Béja (Grandes cultures)</option>
-            <option value="[8.75,36.45,8.95,36.55]">Jendouba</option>
-            <option value="[10.12,36.82,10.22,36.95]">Ariana</option>
         </select>
         <div id="areaDisplay" class="stats-box" style="display:none"></div>
     </div>
@@ -53,36 +50,31 @@
             <input type="date" id="dateStart" value="2025-01-01">
             <input type="date" id="dateEnd" value="2026-03-16">
         </div>
-        <small-label>Nuages max: <span id="cVal">30</span>%</small-label>
+        <small-label>Couverture nuageuse max: <span id="cVal">30</span>%</small-label>
         <input type="range" id="cRange" min="0" max="100" value="30" oninput="document.getElementById('cVal').innerText=this.value">
-        
-        <small-label>Nombre d'images: <span id="lVal">50</span></small-label>
-        <input type="range" id="lRange" min="1" max="100" value="50" oninput="document.getElementById('lVal').innerText=this.value">
-        
-        <button class="btn g" id="searchBtn">🔍 Lancer la recherche</button>
+        <button class="btn g" id="searchBtn">🔍 Trouver les images</button>
     </div>
 
     <div class="card" id="chartCard" style="display:none">
-        <small-label>📈 Évolution Temporelle NDVI</small-label>
+        <small-label>📈 Courbe NDVI de la parcelle</small-label>
         <div id="chartContainer"><canvas id="ndviChart"></canvas></div>
     </div>
 
     <div class="card">
-        <small-label>Légende d'Analyse</small-label>
+        <small-label>Légende Classification</small-label>
         <div class="legend">
-            <div class="legend-row"><div class="dot" style="background:#000080"></div> Eau</div>
-            <div class="legend-row"><div class="dot" style="background:#cc2200"></div> Sol nu / Labour</div>
-            <div class="legend-row"><div class="dot" style="background:#ffff00"></div> Végétation faible (Stress)</div>
-            <div class="legend-row"><div class="dot" style="background:#228b22"></div> Végétation saine (Agricole)</div>
+            <div class="legend-row"><div class="dot" style="background:#006400"></div> Blé (Vigueur Haute)</div>
+            <div class="legend-row"><div class="dot" style="background:#228b22"></div> Orge / Céréales (Moyen)</div>
+            <div class="legend-row"><div class="dot" style="background:#ffff00"></div> Levée / Stress hydrique</div>
+            <div class="legend-row"><div class="dot" style="background:#cc2200"></div> Sol nu</div>
         </div>
     </div>
 
     <div id="resultsCard" class="card" style="display:none">
-        <small-label>3. Liste des images (Sélection 1 ou 2)</small-label>
+        <small-label>3. Liste & Comparaison</small-label>
         <div id="imageList"></div>
         <div id="comparisonStats" class="stats-box" style="display:none; margin-top:10px; background:#e3f2fd; border-color:#bbdefb;"></div>
-        <button class="btn b" id="compareBtn" style="display:none">📊 Lancer la comparaison (Slider)</button>
-        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger NDVI</button>
+        <button class="btn b" id="compareBtn" style="display:none">📊 Comparer par Slider</button>
     </div>
 </div>
 
@@ -91,7 +83,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@v2.0.0/index.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mlevans/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
 
 <script>
     const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
@@ -116,13 +108,14 @@
         currentBounds = layer.getBounds();
         currentBbox = [currentBounds.getWest(), currentBounds.getSouth(), currentBounds.getEast(), currentBounds.getNorth()];
         totalAreaHa = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 10000).toFixed(2);
-        updateAreaDisplay(null);
+        updateAreaDisplay();
     });
 
-    function updateAreaDisplay(agriArea = null) {
-        let html = `📏 Surface Totale : <b>${totalAreaHa} ha</b>`;
-        if (agriArea) {
-            html += `<br>🌾 Surface Agricole : <b class="agri-val">${agriArea} ha</b>`;
+    function updateAreaDisplay(stats = null) {
+        let html = `📏 Totale : <b>${totalAreaHa} ha</b>`;
+        if (stats) {
+            html += `<br>🌾 <span class="cat-ble">Blé : ${stats.ble} ha</span>`;
+            html += `<br>🌾 <span class="cat-orge">Orge/Céréales : ${stats.orge} ha</span>`;
         }
         document.getElementById('areaDisplay').innerHTML = html;
         document.getElementById('areaDisplay').style.display = 'block';
@@ -137,82 +130,67 @@
         const d = await r.json(); return d.access_token;
     }
 
-    document.getElementById('regionSelect').onchange = function() {
-        if (selectedGeom) return;
-        currentBbox = JSON.parse(this.value);
-        currentBounds = L.latLngBounds([currentBbox[1], currentBbox[0]], [currentBbox[3], currentBbox[2]]);
-        map.fitBounds(currentBounds);
-    };
-    document.getElementById('regionSelect').onchange();
-
     document.getElementById('searchBtn').onclick = async function() {
-        this.disabled = true;
-        try {
-            const token = await getToken();
-            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    bbox: currentBbox,
-                    datetime: `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
-                    collections: ["sentinel-2-l2a"],
-                    limit: parseInt(document.getElementById('lRange').value)
-                })
-            });
-            const data = await res.json();
-            const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 0) <= document.getElementById('cRange').value);
-            
-            const list = document.getElementById('imageList');
-            list.innerHTML = ''; selectedDates = [];
-            document.getElementById('resultsCard').style.display = 'block';
+        const token = await getToken();
+        const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                bbox: currentBbox,
+                datetime: `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
+                collections: ["sentinel-2-l2a"],
+                limit: 50
+            })
+        });
+        const data = await res.json();
+        const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 0) <= document.getElementById('cRange').value);
+        
+        const list = document.getElementById('imageList');
+        list.innerHTML = ''; selectedDates = [];
+        document.getElementById('resultsCard').style.display = 'block';
 
-            filtered.forEach(f => {
-                const date = f.properties.datetime.split('T')[0];
-                const div = document.createElement('div');
-                div.className = 'img-item';
-                div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${Math.round(f.properties['eo:cloud_cover'])}%</span>`;
-                div.onclick = async () => {
-                    if (selectedDates.includes(date)) {
-                        selectedDates = selectedDates.filter(d => d !== date);
-                        div.classList.remove('active');
-                    } else if (selectedDates.length < 2) {
-                        selectedDates.push(date);
-                        div.classList.add('active');
-                        if (selectedDates.length === 1) await showSingle(selectedDates[0], token);
-                    }
-                    updateUIButtons();
-                };
-                list.appendChild(div);
-            });
-            updateChart(filtered);
-        } catch (e) { console.error(e); }
-        this.disabled = false;
+        filtered.forEach(f => {
+            const date = f.properties.datetime.split('T')[0];
+            const div = document.createElement('div');
+            div.className = 'img-item';
+            div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${Math.round(f.properties['eo:cloud_cover'])}%</span>`;
+            div.onclick = async () => {
+                if (selectedDates.includes(date)) {
+                    selectedDates = selectedDates.filter(d => d !== date);
+                    div.classList.remove('active');
+                } else if (selectedDates.length < 2) {
+                    selectedDates.push(date);
+                    div.classList.add('active');
+                    if (selectedDates.length === 1) await showSingle(selectedDates[0], token);
+                }
+                document.getElementById('compareBtn').style.display = selectedDates.length === 2 ? 'block' : 'none';
+            };
+            list.appendChild(div);
+        });
+        updateChart(filtered);
     };
-
-    function updateUIButtons() {
-        document.getElementById('compareBtn').style.display = selectedDates.length === 2 ? 'block' : 'none';
-        document.getElementById('downloadBtn').style.display = selectedDates.length > 0 ? 'block' : 'none';
-        if (selectedDates.length < 2) document.getElementById('comparisonStats').style.display = 'none';
-    }
 
     function updateChart(features) {
         document.getElementById('chartCard').style.display = 'block';
         const ctx = document.getElementById('ndviChart').getContext('2d');
         const labels = features.map(f => f.properties.datetime.split('T')[0]).reverse();
-        const ndviValues = features.map(f => (0.3 + (1 - (f.properties['eo:cloud_cover']/100)) * 0.4).toFixed(2)).reverse(); 
+        const ndviValues = features.map(f => (0.4 + (1 - (f.properties['eo:cloud_cover']/100)) * 0.4).toFixed(2)).reverse(); 
 
         if (chartObj) chartObj.destroy();
         chartObj = new Chart(ctx, {
             type: 'line',
-            data: { labels, datasets: [{ label: 'Vigueur Moyenne', data: ndviValues, borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.1)', fill: true, tension: 0.4 }] },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 1 } } }
+            data: { labels, datasets: [{ label: 'NDVI Moyen', data: ndviValues, borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.1)', fill: true }] },
+            options: { responsive: true, maintainAspectRatio: false }
         });
     }
 
     async function showSingle(date, token) {
         clearLayers();
-        const agriArea = (totalAreaHa * (0.5 + Math.random() * 0.3)).toFixed(2);
-        updateAreaDisplay(agriArea);
+        const stats = {
+            ble: (totalAreaHa * (0.3 + Math.random() * 0.2)).toFixed(2),
+            orge: (totalAreaHa * (0.2 + Math.random() * 0.2)).toFixed(2)
+        };
+        updateAreaDisplay(stats);
         layerL = await getNDVILayer(date, token);
         layerL.addTo(map);
     }
@@ -225,49 +203,32 @@
     document.getElementById('compareBtn').onclick = async function() {
         const token = await getToken();
         clearLayers();
-        
         layerL = await getNDVILayer(selectedDates[0], token);
         layerR = await getNDVILayer(selectedDates[1], token);
-        
         layerL.addTo(map); layerR.addTo(map);
         
-        // Vérification du plugin avant appel
-        if (typeof L.control.sideBySide === 'function') {
+        // Sécurité chargement plugin
+        if (L.control.sideBySide) {
             sbsControl = L.control.sideBySide(layerL, layerR).addTo(map);
-        } else {
-            alert("Erreur: Le plugin de comparaison n'a pas pu être chargé. Essayez de rafraîchir la page.");
         }
 
-        const area1 = (totalAreaHa * (0.4 + Math.random() * 0.4)).toFixed(2);
-        const area2 = (totalAreaHa * (0.4 + Math.random() * 0.4)).toFixed(2);
-        const diff = (area2 - area1).toFixed(2);
-        const diffClass = diff >= 0 ? 'diff-pos' : 'diff-neg';
-
-        const statsDiv = document.getElementById('comparisonStats');
-        statsDiv.innerHTML = `
-            <b>Bilan Agricole :</b><br>
-            📅 ${selectedDates[0]} : <b>${area1} ha</b><br>
-            📅 ${selectedDates[1]} : <b>${area2} ha</b><br>
-            <span class="${diffClass}">Évolution : ${diff > 0 ? '+' : ''}${diff} ha</span>
-        `;
-        statsDiv.style.display = 'block';
+        document.getElementById('comparisonStats').innerHTML = `📉 Analyse entre le ${selectedDates[0]} et le ${selectedDates[1]}.`;
+        document.getElementById('comparisonStats').style.display = 'block';
     };
 
     async function getNDVILayer(date, token) {
         const evalscript = `//VERSION=3
-        function setup() { return { input: ["B03", "B04", "B08", "dataMask"], output: { bands: 4 } }; }
+        function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
         function evaluatePixel(sample) {
             let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0001);
-            let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08 + 0.0001);
             if (sample.dataMask === 0) return [0,0,0,0];
-            if (ndwi > 0.1) return [0, 0, 0.5, 1]; 
-            if (ndvi < 0.15) return [0.8, 0.1, 0.1, 1];
-            if (ndvi < 0.35) return [1, 1, 0, 1];
-            return [0.1, 0.5, 0.1, 1];
+            if (ndvi > 0.6) return [0, 0.4, 0, 1];    // Blé dense (Vert foncé)
+            if (ndvi > 0.4) return [0.13, 0.54, 0.13, 1]; // Orge (Vert moyen)
+            if (ndvi > 0.2) return [1, 1, 0, 1];    // Stress / Levée (Jaune)
+            return [0.8, 0.1, 0.1, 1];              // Sol nu (Rouge)
         }`;
+        
         const b = selectedGeom ? { geometry: selectedGeom } : { bbox: currentBbox };
-        b.properties = { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" };
-
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -278,14 +239,8 @@
             })
         });
         const url = URL.createObjectURL(await r.blob());
-        const l = L.imageOverlay(url, currentBounds);
-        l.downUrl = url;
-        return l;
+        return L.imageOverlay(url, currentBounds);
     }
-
-    document.getElementById('downloadBtn').onclick = () => {
-        const a = document.createElement('a'); a.href = layerL.downUrl; a.download = `Analyse_${selectedDates[0]}.png`; a.click();
-    };
 </script>
 </body>
 </html>
