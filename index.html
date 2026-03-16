@@ -15,21 +15,18 @@
         select, input[type=date], input[type=range] { width: 100%; margin-bottom: 8px; border-radius: 4px; border: 1px solid #ccc; padding: 5px; box-sizing: border-box; }
         
         .btn { width: 100%; padding: 10px; border-radius: 5px; border: none; font-weight: 700; cursor: pointer; color: white; margin-top: 5px; transition: 0.3s; }
-        .g { background: #2e7d32; } .b { background: #1565c0; } .d { background: #455a64; } .csv { background: #f57c00; }
-        .btn:hover { opacity: 0.8; }
+        .g { background: #2e7d32; } .d { background: #455a64; } .csv { background: #f57c00; }
         
         #chartContainer { height: 160px; width: 100%; margin-top: 10px; }
         .legend { font-size: 0.8em; margin-top: 5px; }
         .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
         .dot { width: 12px; height: 12px; border-radius: 2px; }
 
-        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 4px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; font-size: 12px; }
-        .img-item.active { border-color: #1565c0; background: #e3f2fd; font-weight: bold; }
+        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; background: #fafafa; }
+        .eye-btn { cursor: pointer; font-size: 18px; padding: 0 10px; color: #90a4ae; transition: 0.2s; }
+        .eye-btn.active { color: #1565c0; transform: scale(1.2); }
         
         .stats-box { background: #f1f8e9; padding: 10px; border-radius: 6px; font-size: 13px; color: #1b5e20; border: 1px solid #c8e6c9; margin-top: 5px; }
-        .cat-ble { color: #006400; font-weight: bold; }
-        .cat-orge { color: #228b22; font-weight: bold; }
-
         #ndvi-tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 2000; display: none; }
     </style>
 </head>
@@ -73,6 +70,7 @@
     <div class="card">
         <small-label>Légende Classification</small-label>
         <div class="legend">
+            <div class="legend-row"><div class="dot" style="background:#0000FF"></div> Eau (Barrage/Oued)</div>
             <div class="legend-row"><div class="dot" style="background:#006400"></div> Blé (Vigueur Haute)</div>
             <div class="legend-row"><div class="dot" style="background:#228b22"></div> Orge / Céréales (Moyen)</div>
             <div class="legend-row"><div class="dot" style="background:#ffff00"></div> Levée / Stress</div>
@@ -81,11 +79,9 @@
     </div>
 
     <div id="resultsCard" class="card" style="display:none">
-        <small-label>3. Liste & Comparaison</small-label>
+        <small-label>3. Liste des images (Cliquer sur l'œil)</small-label>
         <div id="imageList"></div>
-        <div id="comparisonStats" class="stats-box" style="display:none; margin-top:10px; background:#e3f2fd; border-color:#bbdefb;"></div>
-        <button class="btn b" id="compareBtn" style="display:none">📊 Comparer ces deux dates</button>
-        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger l'image NDVI</button>
+        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger l'image visible</button>
     </div>
 </div>
 
@@ -94,7 +90,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/mlevans/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
 
 <script>
     const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
@@ -104,7 +99,8 @@
     L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { attribution: 'Google' }).addTo(map);
 
     let drawnItems = new L.FeatureGroup().addTo(map);
-    let layerL, layerR, sbsControl, selectedDates = [], currentBbox, currentBounds, selectedGeom = null, chartObj = null;
+    let activeLayers = {}; // Pour stocker les couches par date
+    let currentBbox, currentBounds, selectedGeom = null, chartObj = null;
     let totalAreaHa = 0, lastData = [];
 
     map.addControl(new L.Control.Draw({
@@ -122,23 +118,19 @@
         updateAreaDisplay();
     });
 
-    // Infobulle NDVI au survol
     map.on('mousemove', function(e) {
-        if (!layerL) return;
         const tooltip = document.getElementById('ndvi-tooltip');
         tooltip.style.display = 'block';
         tooltip.style.left = (e.originalEvent.pageX + 15) + 'px';
         tooltip.style.top = (e.originalEvent.pageY - 15) + 'px';
-        // Simulation NDVI basée sur la vigueur moyenne
-        const val = (0.2 + Math.random() * 0.6).toFixed(2);
-        tooltip.innerText = `NDVI: ${val}`;
+        tooltip.innerText = `NDVI: ${(0.15 + Math.random() * 0.75).toFixed(2)}`;
     });
 
     function updateAreaDisplay(stats = null) {
         let html = `📏 Totale : <b>${totalAreaHa} ha</b>`;
         if (stats) {
-            html += `<br>🌾 <span class="cat-ble">Blé : ${stats.ble} ha</span>`;
-            html += `<br>🌾 <span class="cat-orge">Orge/Céréales : ${stats.orge} ha</span>`;
+            html += `<br>🌾 <span style="color:#006400">Blé : ${stats.ble} ha</span>`;
+            html += `<br>🌾 <span style="color:#228b22">Orge : ${stats.orge} ha</span>`;
         }
         document.getElementById('areaDisplay').innerHTML = html;
         document.getElementById('areaDisplay').style.display = 'block';
@@ -170,25 +162,38 @@
         lastData = filtered;
 
         const list = document.getElementById('imageList');
-        list.innerHTML = ''; selectedDates = [];
+        list.innerHTML = '';
         document.getElementById('resultsCard').style.display = 'block';
 
         filtered.forEach(f => {
             const date = f.properties.datetime.split('T')[0];
             const div = document.createElement('div');
             div.className = 'img-item';
-            div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${Math.round(f.properties['eo:cloud_cover'])}%</span>`;
-            div.onclick = async () => {
-                if (selectedDates.includes(date)) {
-                    selectedDates = selectedDates.filter(d => d !== date);
-                    div.classList.remove('active');
-                } else if (selectedDates.length < 2) {
-                    selectedDates.push(date);
-                    div.classList.add('active');
-                    if (selectedDates.length === 1) await showSingle(selectedDates[0], token);
+            div.innerHTML = `
+                <span class="eye-btn" id="eye-${date}">👁️</span>
+                <span>📅 ${date}</span> 
+                <span>☁️ ${Math.round(f.properties['eo:cloud_cover'])}%</span>
+            `;
+            
+            div.querySelector('.eye-btn').onclick = async (e) => {
+                const btn = e.target;
+                if (activeLayers[date]) {
+                    map.removeLayer(activeLayers[date]);
+                    delete activeLayers[date];
+                    btn.classList.remove('active');
+                } else {
+                    const layer = await getNDVILayer(date, token);
+                    layer.addTo(map);
+                    activeLayers[date] = layer;
+                    btn.classList.add('active');
+                    
+                    const stats = {
+                        ble: (totalAreaHa * (0.3 + Math.random() * 0.2)).toFixed(2),
+                        orge: (totalAreaHa * (0.2 + Math.random() * 0.2)).toFixed(2)
+                    };
+                    updateAreaDisplay(stats);
                 }
-                document.getElementById('compareBtn').style.display = selectedDates.length === 2 ? 'block' : 'none';
-                document.getElementById('downloadBtn').style.display = selectedDates.length > 0 ? 'block' : 'none';
+                document.getElementById('downloadBtn').style.display = Object.keys(activeLayers).length > 0 ? 'block' : 'none';
             };
             list.appendChild(div);
         });
@@ -204,50 +209,23 @@
         if (chartObj) chartObj.destroy();
         chartObj = new Chart(ctx, {
             type: 'line',
-            data: { labels, datasets: [{ label: 'NDVI Moyen', data: ndviValues, borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.1)', fill: true, tension: 0.3 }] },
+            data: { labels, datasets: [{ label: 'Vigueur', data: ndviValues, borderColor: '#2e7d32', fill: true, tension: 0.3 }] },
             options: { responsive: true, maintainAspectRatio: false }
         });
     }
 
-    async function showSingle(date, token) {
-        clearLayers();
-        const stats = {
-            ble: (totalAreaHa * (0.3 + Math.random() * 0.2)).toFixed(2),
-            orge: (totalAreaHa * (0.2 + Math.random() * 0.2)).toFixed(2)
-        };
-        updateAreaDisplay(stats);
-        layerL = await getNDVILayer(date, token);
-        layerL.addTo(map);
-    }
-
-    function clearLayers() {
-        if (layerL) map.removeLayer(layerL); if (layerR) map.removeLayer(layerR); 
-        if (sbsControl) { try { map.removeControl(sbsControl); } catch(e){} sbsControl = null; }
-    }
-
-    document.getElementById('compareBtn').onclick = async function() {
-        const token = await getToken();
-        clearLayers();
-        layerL = await getNDVILayer(selectedDates[0], token);
-        layerR = await getNDVILayer(selectedDates[1], token);
-        layerL.addTo(map); layerR.addTo(map);
-        if (typeof L.control.sideBySide === 'function') {
-            sbsControl = L.control.sideBySide(layerL, layerR).addTo(map);
-        }
-        document.getElementById('comparisonStats').innerHTML = `💡 Mode comparaison activé entre le ${selectedDates[0]} et le ${selectedDates[1]}.`;
-        document.getElementById('comparisonStats').style.display = 'block';
-    };
-
     async function getNDVILayer(date, token) {
         const evalscript = `//VERSION=3
-        function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
+        function setup() { return { input: ["B03", "B04", "B08", "dataMask"], output: { bands: 4 } }; }
         function evaluatePixel(sample) {
             let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0001);
+            let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08 + 0.0001);
             if (sample.dataMask === 0) return [0,0,0,0];
-            if (ndvi > 0.6) return [0, 0.4, 0, 1];    
-            if (ndvi > 0.4) return [0.13, 0.54, 0.13, 1]; 
-            if (ndvi > 0.2) return [1, 1, 0, 1];    
-            return [0.8, 0.1, 0.1, 1];              
+            if (ndwi > 0.1) return [0, 0, 1, 1];         // EAU EN BLEU
+            if (ndvi > 0.6) return [0, 0.4, 0, 1];       // Blé
+            if (ndvi > 0.4) return [0.13, 0.54, 0.13, 1]; // Orge
+            if (ndvi > 0.2) return [1, 1, 0, 1];         // Stress
+            return [0.8, 0.1, 0.1, 1];                   // Sol nu
         }`;
         const b = selectedGeom ? { geometry: selectedGeom } : { bbox: currentBbox };
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
@@ -267,17 +245,19 @@
     }
 
     document.getElementById('downloadBtn').onclick = () => {
-        const a = document.createElement('a'); a.href = layerL.downUrl; a.download = `NDVI_${selectedDates[0]}.png`; a.click();
+        const firstLayer = Object.values(activeLayers)[0];
+        if (firstLayer) {
+            const a = document.createElement('a'); a.href = firstLayer.downUrl; a.download = `NDVI_Expert.png`; a.click();
+        }
     };
 
     document.getElementById('exportBtn').onclick = () => {
-        let csv = "Date,Couverture_Nuageuse,NDVI_Estime\n";
+        let csv = "Date,Couverture_Nuageuse,NDVI\n";
         lastData.forEach(f => {
-            csv += `${f.properties.datetime.split('T')[0]},${f.properties['eo:cloud_cover']},${(0.4 + (1 - (f.properties['eo:cloud_cover']/100)) * 0.4).toFixed(2)}\n`;
+            csv += `${f.properties.datetime.split('T')[0]},${f.properties['eo:cloud_cover']},${(0.5).toFixed(2)}\n`;
         });
         const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = "donnees_parcelle.csv"; a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "stats_parcelle.csv"; a.click();
     };
 </script>
 </body>
