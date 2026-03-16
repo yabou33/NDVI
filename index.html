@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>NDVI Nabeul - Test Direct</title>
+    <title>NDVI Nabeul - Fix Technique</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
@@ -15,7 +15,6 @@
         button { width: 100%; padding: 12px; background: #2e7d32; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
         button:hover { background: #1b5e20; }
         .img-item { border: 1px solid #ddd; padding: 10px; margin-top: 8px; cursor: pointer; border-radius: 5px; font-size: 0.9em; transition: 0.2s; }
-        .img-item:hover { background: #f1f8e9; }
         .img-item.active { border-color: #1565c0; background: #e3f2fd; font-weight: bold; }
         #status { font-size: 0.85em; margin-top: 10px; color: #666; }
     </style>
@@ -41,21 +40,19 @@
 
 <script>
     // Configuration Sentinel Hub
-    const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
+    const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
     const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh"; 
 
-    // Coordonnées du carré à Nabeul
     const bboxNabeul = [10.861176, 36.755022, 10.874609, 36.769634];
     const boundsLeaflet = L.latLngBounds([36.755022, 10.861176], [36.769634, 10.874609]);
 
     const map = L.map('map').setView([36.762, 10.867], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    
-    // Rectangle visuel sur la zone de test
     L.rectangle(boundsLeaflet, {color: "#ff7800", weight: 1, fillOpacity: 0.1}).addTo(map);
 
     let layerL, layerR, slider, selected = [];
 
+    // La fonction doit être async pour utiliser await
     async function getToken() {
         try {
             const body = 'grant_type=client_credentials&client_id=' + CLIENT_ID + '&client_secret=' + CLIENT_SECRET;
@@ -65,18 +62,18 @@
                 body: body
             });
             if (r.ok) return (await r.json()).access_token;
-            else { console.error("Erreur Auth:", await r.text()); return null; }
+            return null;
         } catch (e) { return null; }
     }
 
-    document.getElementById('searchBtn').onclick = async () => {
+    document.getElementById('searchBtn').onclick = async function() {
         const status = document.getElementById('status');
-        status.innerText = "Connexion à Sentinel Hub...";
+        status.innerText = "Connexion...";
         
         const token = await getToken();
-        if(!token) { status.innerText = "Erreur : Client ID ou Secret invalide."; return; }
+        if(!token) { status.innerText = "Erreur : Identifiants invalides."; return; }
 
-        status.innerText = "Recherche sur Nabeul...";
+        status.innerText = "Recherche...";
         try {
             const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
                 method: 'POST',
@@ -85,28 +82,22 @@
                     "bbox": bboxNabeul,
                     "datetime": "2025-01-01T00:00:00Z/2026-03-16T23:59:59Z",
                     "collections": ["sentinel-2-l2a"],
-                    "limit": 12,
+                    "limit": 10,
                     "query": { "eo:cloud_cover": { "lt": 30 } }
                 })
             });
 
-            if (!res.ok) {
-                const err = await res.json();
-                status.innerText = "Erreur 400 : " + (err.error ? err.error.message : "Paramètres");
-                return;
-            }
-
             const data = await res.json();
             const list = document.getElementById('imageList');
-            list.innerHTML = ""; selected = [];
+            list.innerHTML = ""; 
+            selected = [];
             document.getElementById('results').style.display = "block";
 
             data.features.forEach(item => {
                 const d = item.properties.datetime.split('T')[0];
-                const cloud = Math.round(item.properties["eo:cloud_cover"]);
                 const div = document.createElement('div');
                 div.className = 'img-item';
-                div.innerHTML = `📅 ${d} <span style="float:right">☁️ ${cloud}%</span>`;
+                div.innerHTML = `📅 ${d} <span style="float:right">☁️ ${Math.round(item.properties["eo:cloud_cover"])}%</span>`;
                 div.onclick = () => {
                     div.classList.toggle('active');
                     const idx = selected.findIndex(s => s.date === d);
@@ -116,14 +107,14 @@
                 };
                 list.appendChild(div);
             });
-            status.innerText = data.features.length + " images disponibles.";
-        } catch (e) { status.innerText = "Erreur réseau."; }
+            status.innerText = data.features.length + " images trouvées.";
+        } catch (e) { status.innerText = "Erreur de recherche."; }
     };
 
-    document.getElementById('compareBtn').onclick = async () => {
+    document.getElementById('compareBtn').onclick = async function() {
         if(layerL) map.removeLayer(layerL); if(layerR) map.removeLayer(layerR); if(slider) map.removeControl(slider);
         
-        document.getElementById('status').innerText = "Calcul NDVI...";
+        document.getElementById('status').innerText = "Génération NDVI...";
         layerL = await getNDVI(selected[0]);
         layerL.addTo(map);
 
@@ -131,10 +122,8 @@
             layerR = await getNDVI(selected[1]);
             layerR.addTo(map);
             slider = L.control.sideBySide(layerL, layerR).addTo(map);
-            document.getElementById('status').innerText = "Utilisez le curseur central.";
-        } else {
-            document.getElementById('status').innerText = "Affichage d'une seule date.";
         }
+        document.getElementById('status').innerText = "Terminé.";
     };
 
     async function getNDVI(img) {
