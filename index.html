@@ -291,150 +291,104 @@
     const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh";
 
     /* ═══════════════════════════════════════════════════════
-       EVALSCRIPTS — Option A : Classification multi-cultures
+       EVALSCRIPTS
     ═══════════════════════════════════════════════════════ */
     const EVALSCRIPTS = {
-
-        // ── Mode 1 : NDVI Céréales (palette originale)
         ndvi_cereal: `//VERSION=3
-function setup() {
-    return { input: [{ bands: ["B03","B04","B08","dataMask"] }], output: { bands: 4 } };
-}
+function setup() { return { input:[{bands:["B03","B04","B08","dataMask"]}], output:{bands:4} }; }
 function evaluatePixel(s) {
-    if (s.dataMask === 0) return [0,0,0,0];
-    const ndvi = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
-    const ndwi = (s.B03 - s.B08) / (s.B03 + s.B08 + 1e-10);
-    if (ndwi > 0.1)  return [0.05, 0.35, 0.75, 1];  // Eau
-    if (ndvi > 0.6)  return [0.0,  0.39, 0.13, 1];  // Blé vigueur haute
-    if (ndvi > 0.4)  return [0.13, 0.55, 0.13, 1];  // Orge / céréales
-    if (ndvi > 0.2)  return [1.0,  1.0,  0.0,  1];  // Levée / stress
-    return [0.8, 0.13, 0.1, 1];                      // Sol nu
+    if (s.dataMask===0) return [0,0,0,0];
+    const ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
+    const ndwi=(s.B03-s.B08)/(s.B03+s.B08+1e-10);
+    if (ndwi>0.1)  return [0.05,0.35,0.75,1];
+    if (ndvi>0.6)  return [0.0, 0.39,0.13,1];
+    if (ndvi>0.4)  return [0.13,0.55,0.13,1];
+    if (ndvi>0.2)  return [1.0, 1.0, 0.0, 1];
+    return [0.8,0.13,0.1,1];
 }`,
-
-        // ── Mode 2 : NDVI Classique (dégradé continu)
         ndvi_classic: `//VERSION=3
-function setup() {
-    return { input: [{ bands: ["B04","B08","dataMask"] }], output: { bands: 4 } };
-}
+function setup() { return { input:[{bands:["B04","B08","dataMask"]}], output:{bands:4} }; }
 function evaluatePixel(s) {
-    if (s.dataMask === 0) return [0,0,0,0];
-    const ndvi = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
-    const v = Math.max(0, Math.min(1, (ndvi + 0.2) / 1.2));
-    // Rouge → Jaune → Vert
-    if (v < 0.5) return [1, v*2, 0, 1];
-    return [1 - (v-0.5)*2, 1, 0, 1];
+    if (s.dataMask===0) return [0,0,0,0];
+    const ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
+    const v=Math.max(0,Math.min(1,(ndvi+0.2)/1.2));
+    if (v<0.5) return [1,v*2,0,1];
+    return [1-(v-0.5)*2,1,0,1];
 }`,
-
-        // ── Mode 3 : CLASSIFICATION OPTION A — Multi-cultures (NDVI + NDRE + NDWI + BSI)
-        // Utilise 7 bandes pour distinguer : Eau, Oliviers/Arbo, Blé, Orge, Maraîcher, Sol nu, Jachère
         classify_a: `//VERSION=3
-function setup() {
-    return {
-        input: [{ bands: ["B02","B03","B04","B05","B08","B11","dataMask"] }],
-        output: { bands: 4 }
-    };
-}
+function setup() { return { input:[{bands:["B02","B03","B04","B05","B08","B11","dataMask"]}], output:{bands:4} }; }
 function evaluatePixel(s) {
-    if (s.dataMask === 0) return [0,0,0,0];
-
-    // ── Calcul des indices ──
-    const ndvi = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
-    // NDRE : Red-Edge — détecte oliviers/arboriculture (chlorophylle profonde)
-    const ndre = (s.B08 - s.B05) / (s.B08 + s.B05 + 1e-10);
-    // NDWI : Water index — eau et humidité
-    const ndwi = (s.B03 - s.B08) / (s.B03 + s.B08 + 1e-10);
-    // BSI : Bare Soil Index — sol nu et labours
-    const bsi  = ((s.B11 + s.B04) - (s.B08 + s.B02)) /
-                 ((s.B11 + s.B04) + (s.B08 + s.B02) + 1e-10);
-
-    // ── Classification par règles ──
-
-    // 1. EAU (barrage, oued) — NDWI fort
-    if (ndwi > 0.15)
-        return [0.08, 0.38, 0.75, 1];    // Bleu
-
-    // 2. OLIVIERS / ARBORICULTURE
-    // NDRE élevé (feuillaison dense), NDVI modéré-élevé, stable toute l'année
-    if (ndre > 0.25 && ndvi > 0.35 && ndvi < 0.75)
-        return [0.35, 0.60, 0.15, 1];    // Vert olive
-
-    // 3. BLÉ VIGUEUR HAUTE
-    // NDVI très élevé en saison, BSI faible
-    if (ndvi > 0.55 && bsi < 0.0)
-        return [0.05, 0.45, 0.10, 1];    // Vert foncé
-
-    // 4. ORGE / CÉRÉALES — NDVI moyen-élevé
-    if (ndvi > 0.35 && ndvi <= 0.55)
-        return [0.45, 0.75, 0.20, 1];    // Vert clair
-
-    // 5. CULTURES MARAÎCHÈRES / IRRIGUÉES
-    // NDVI élevé + humidité (NDWI légèrement positif)
-    if (ndvi > 0.45 && ndwi > -0.05 && ndwi <= 0.15)
-        return [0.0, 0.80, 0.60, 1];     // Cyan-vert
-
-    // 6. LEVÉE / STRESS HYDRIQUE — NDVI faible mais végétation présente
-    if (ndvi > 0.15 && ndvi <= 0.35)
-        return [0.95, 0.85, 0.10, 1];    // Jaune
-
-    // 7. JACHÈRE — sol partiellement couvert
-    if (ndvi > 0.05 && ndvi <= 0.15)
-        return [0.80, 0.55, 0.20, 1];    // Brun orangé
-
-    // 8. SOL NU / LABOUR — BSI fort
-    return [0.75, 0.25, 0.15, 1];        // Rouge brique
+    if (s.dataMask===0) return [0,0,0,0];
+    const ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
+    const ndre=(s.B08-s.B05)/(s.B08+s.B05+1e-10);
+    const ndwi=(s.B03-s.B08)/(s.B03+s.B08+1e-10);
+    const bsi=((s.B11+s.B04)-(s.B08+s.B02))/((s.B11+s.B04)+(s.B08+s.B02)+1e-10);
+    if (ndwi>0.15)                           return [0.08,0.38,0.75,1];
+    if (ndre>0.25&&ndvi>0.35&&ndvi<0.75)     return [0.35,0.60,0.15,1];
+    if (ndvi>0.55&&bsi<0.0)                  return [0.05,0.45,0.10,1];
+    if (ndvi>0.35&&ndvi<=0.55)               return [0.45,0.75,0.20,1];
+    if (ndvi>0.45&&ndwi>-0.05&&ndwi<=0.15)  return [0.0, 0.80,0.60,1];
+    if (ndvi>0.15&&ndvi<=0.35)               return [0.95,0.85,0.10,1];
+    if (ndvi>0.05&&ndvi<=0.15)               return [0.80,0.55,0.20,1];
+    return [0.75,0.25,0.15,1];
 }`,
-
-        // ── Mode 4 : Couleurs réelles
         true_color: `//VERSION=3
-function setup() {
-    return { input: [{ bands: ["B04","B03","B02","dataMask"] }], output: { bands: 4 } };
-}
+function setup() { return { input:[{bands:["B04","B03","B02","dataMask"]}], output:{bands:4} }; }
 function evaluatePixel(s) {
-    if (s.dataMask === 0) return [0,0,0,0];
-    return [s.B04 * 3.5, s.B03 * 3.5, s.B02 * 3.5, 1];
+    if (s.dataMask===0) return [0,0,0,0];
+    return [s.B04*3.5,s.B03*3.5,s.B02*3.5,1];
 }`
     };
 
+    // Evalscript dédié pour lecture NDVI pixel (retourne valeur float encodée en PNG R+G)
+    const EVALSCRIPT_NDVI_VALUE = `//VERSION=3
+function setup() { return { input:[{bands:["B04","B08","dataMask"]}], output:{bands:4} }; }
+function evaluatePixel(s) {
+    if (s.dataMask===0) return [0,0,0,0];
+    const ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
+    // Encoder NDVI [-1,1] → [0,255] dans canal R, indicateur de validité dans A
+    const encoded = Math.round((ndvi+1)/2 * 255);
+    return [encoded/255, 0, 0, 1];
+}`;
+
     /* ═══════════════════════════════════════════════════════
-       LÉGENDES par mode
+       LÉGENDES
     ═══════════════════════════════════════════════════════ */
     const LEGENDS = {
-        ndvi_cereal: [
-            { color:'#0d5fc0', label:'Eau / Oued' },
-            { color:'#006421', label:'Blé (vigueur haute)' },
-            { color:'#228b22', label:'Orge / Céréales' },
-            { color:'#ffff00', label:'Levée / Stress' },
-            { color:'#cc2200', label:'Sol nu' }
+        ndvi_cereal:  [
+            {color:'#0d5fc0',label:'Eau / Oued'},
+            {color:'#006421',label:'Blé (vigueur haute)'},
+            {color:'#228b22',label:'Orge / Céréales'},
+            {color:'#ffff00',label:'Levée / Stress'},
+            {color:'#cc2200',label:'Sol nu'}
         ],
         ndvi_classic: [
-            { color:'#ff0000', label:'NDVI très bas (< 0)' },
-            { color:'#ffaa00', label:'NDVI bas (0 – 0.3)' },
-            { color:'#ccff00', label:'NDVI moyen (0.3 – 0.6)' },
-            { color:'#00cc00', label:'NDVI élevé (> 0.6)' }
+            {color:'#ff0000',label:'NDVI très bas (< 0)'},
+            {color:'#ffaa00',label:'NDVI bas (0 – 0.3)'},
+            {color:'#ccff00',label:'NDVI moyen (0.3 – 0.6)'},
+            {color:'#00cc00',label:'NDVI élevé (> 0.6)'}
         ],
-        classify_a: [
-            { color:'#1461bf', label:'Eau / Barrage' },
-            { color:'#599926', label:'Oliviers / Arboriculture' },
-            { color:'#0d7219', label:'Blé (vigueur haute)' },
-            { color:'#73bf33', label:'Orge / Céréales' },
-            { color:'#00cc99', label:'Cultures maraîchères' },
-            { color:'#f2d919', label:'Levée / Stress' },
-            { color:'#cc8c33', label:'Jachère' },
-            { color:'#bf4026', label:'Sol nu / Labour' }
+        classify_a:   [
+            {color:'#1461bf',label:'Eau / Barrage'},
+            {color:'#599926',label:'Oliviers / Arboriculture'},
+            {color:'#0d7219',label:'Blé (vigueur haute)'},
+            {color:'#73bf33',label:'Orge / Céréales'},
+            {color:'#00cc99',label:'Cultures maraîchères'},
+            {color:'#f2d919',label:'Levée / Stress'},
+            {color:'#cc8c33',label:'Jachère'},
+            {color:'#bf4026',label:'Sol nu / Labour'}
         ],
-        true_color: [
-            { color:'#7cb9e8', label:'Image satellite réelle' }
-        ]
+        true_color:   [{color:'#7cb9e8',label:'Image satellite réelle'}]
     };
 
     function renderLegend(mode) {
-        const items = LEGENDS[mode] || [];
-        document.getElementById('legendContent').innerHTML = items.map(i =>
-            `<div class="legend-row">
-                <div class="dot" style="background:${i.color}"></div>
-                <span>${i.label}</span>
-             </div>`
-        ).join('');
+        document.getElementById('legendContent').innerHTML =
+            (LEGENDS[mode]||[]).map(i=>
+                `<div class="legend-row">
+                    <div class="dot" style="background:${i.color}"></div>
+                    <span>${i.label}</span>
+                 </div>`
+            ).join('');
     }
     renderLegend('ndvi_cereal');
     document.getElementById('modeSelect').onchange = () =>
@@ -443,67 +397,172 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        CARTE
     ═══════════════════════════════════════════════════════ */
-    const map = L.map('map').setView([36.7, 10.2], 9);
+    const map = L.map('map').setView([36.7,10.2],9);
     L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        { attribution: '© Google Satellite', maxZoom: 20 }).addTo(map);
+        {attribution:'© Google Satellite',maxZoom:20}).addTo(map);
 
-    // Dessin de parcelle
     const drawnItems = new L.FeatureGroup().addTo(map);
     map.addControl(new L.Control.Draw({
         edit: { featureGroup: drawnItems },
-        draw: { polygon: true, rectangle: true, polyline: false, circle: false, marker: false, circlemarker: false }
+        draw: { polygon:true, rectangle:true, polyline:false, circle:false, marker:false, circlemarker:false }
     }));
+
+    /* ═══════════════════════════════════════════════════════
+       ÉTAT GLOBAL
+    ═══════════════════════════════════════════════════════ */
+    let currentBbox, currentBounds, selectedGeom = null;
+    let totalAreaHa = 0, lastFeatures = [];
+    let activeLayers  = {};
+    let compareL = null, compareR = null;
+    let cLayerL  = null, cLayerR  = null;
+    let slider   = null;
+    let chartObj = null;
+    let cachedToken = null, tokenExpiry = 0;
+
+    // Infobulle — state
+    let tooltipActive   = false;   // true seulement quand une image est visible sur la parcelle
+    let ndviLayerCanvas = null;    // canvas offscreen pour lire les pixels NDVI
+    let ndviBounds      = null;    // bounds de ce canvas
+
+    /* ═══════════════════════════════════════════════════════
+       RÉGION
+    ═══════════════════════════════════════════════════════ */
+    function updateRegion() {
+        currentBbox   = JSON.parse(document.getElementById('regionSelect').value);
+        currentBounds = L.latLngBounds([currentBbox[1],currentBbox[0]],[currentBbox[3],currentBbox[2]]);
+        map.fitBounds(currentBounds);
+        if (window.areaRect) map.removeLayer(window.areaRect);
+        window.areaRect = L.rectangle(currentBounds,{color:'#1b6b35',weight:2,fillOpacity:.06}).addTo(map);
+        selectedGeom = null; drawnItems.clearLayers();
+        disableTooltip();
+    }
+    document.getElementById('regionSelect').onchange = updateRegion;
+    updateRegion();
+
     map.on(L.Draw.Event.CREATED, e => {
         drawnItems.clearLayers();
         drawnItems.addLayer(e.layer);
         selectedGeom  = e.layer.toGeoJSON().geometry;
         currentBounds = e.layer.getBounds();
-        currentBbox   = [currentBounds.getWest(), currentBounds.getSouth(),
-                         currentBounds.getEast(), currentBounds.getNorth()];
+        currentBbox   = [currentBounds.getWest(),currentBounds.getSouth(),
+                         currentBounds.getEast(),currentBounds.getNorth()];
         try {
             const pts = e.layer.getLatLngs()[0];
-            const areaSqm = L.GeometryUtil.geodesicArea(pts);
-            totalAreaHa = (areaSqm / 10000).toFixed(2);
+            totalAreaHa = (L.GeometryUtil.geodesicArea(pts)/10000).toFixed(2);
         } catch { totalAreaHa = '—'; }
         showAreaDisplay();
+        disableTooltip();
     });
 
     /* ═══════════════════════════════════════════════════════
-       ÉTAT
+       INFOBULLE NDVI — activée seulement sur parcelle + image visible
     ═══════════════════════════════════════════════════════ */
-    let currentBbox, currentBounds, selectedGeom = null;
-    let totalAreaHa = 0, lastFeatures = [];
-    let activeLayers  = {};   // date → layer (affichage simple)
-    let compareL = null, compareR = null;   // dates pour comparaison
-    let cLayerL  = null, cLayerR  = null;   // layers pour slider
-    let slider   = null;
-    let chartObj = null;
-    let cachedToken = null, tokenExpiry = 0;
+    const tooltip = document.getElementById('ndvi-tooltip');
 
-    // Init région
-    function updateRegion() {
-        currentBbox   = JSON.parse(document.getElementById('regionSelect').value);
-        currentBounds = L.latLngBounds(
-            [currentBbox[1], currentBbox[0]],
-            [currentBbox[3], currentBbox[2]]
-        );
-        map.fitBounds(currentBounds);
-        if (window.areaRect) map.removeLayer(window.areaRect);
-        window.areaRect = L.rectangle(currentBounds,
-            { color:'#1b6b35', weight:2, fillOpacity:.06 }).addTo(map);
-        selectedGeom = null; drawnItems.clearLayers();
+    function enableTooltip(ndviImgUrl, bounds) {
+        // Charger l'image NDVI dans un canvas offscreen pour lire les pixels
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width  = img.width;
+            canvas.height = img.height;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            ndviLayerCanvas = canvas;
+            ndviBounds      = bounds;
+            tooltipActive   = true;
+        };
+        img.onerror = () => { tooltipActive = false; };
+        img.src = ndviImgUrl;
     }
-    document.getElementById('regionSelect').onchange = updateRegion;
-    updateRegion();
 
-    function showAreaDisplay(stats = null) {
-        let html = `📏 Superficie : <b>${totalAreaHa} ha</b>`;
-        if (stats) {
-            for (const [k,v] of Object.entries(stats))
-                html += `<br>${v.icon} <span style="color:${v.color}">${k} : ${v.ha} ha (${v.pct}%)</span>`;
+    function disableTooltip() {
+        tooltipActive   = false;
+        ndviLayerCanvas = null;
+        ndviBounds      = null;
+        tooltip.style.display = 'none';
+    }
+
+    // Lire la valeur NDVI depuis le canvas en fonction de la position lat/lng
+    function getNdviAtLatLng(latlng) {
+        if (!ndviLayerCanvas || !ndviBounds) return null;
+        const sw = ndviBounds.getSouthWest();
+        const ne = ndviBounds.getNorthEast();
+        const px = (latlng.lng - sw.lng) / (ne.lng - sw.lng);
+        const py = (ne.lat - latlng.lat) / (ne.lat - sw.lat);
+        if (px < 0 || px > 1 || py < 0 || py > 1) return null;
+        const x   = Math.floor(px * ndviLayerCanvas.width);
+        const y   = Math.floor(py * ndviLayerCanvas.height);
+        const ctx = ndviLayerCanvas.getContext('2d');
+        const [r,,, a] = ctx.getImageData(x, y, 1, 1).data;
+        if (a < 10) return null;  // pixel transparent = hors parcelle
+        // Décoder : NDVI = R/255 * 2 - 1
+        return +((r / 255) * 2 - 1).toFixed(3);
+    }
+
+    // Vérifier si le curseur est dans la zone dessinée
+    function isInsideDrawnArea(latlng) {
+        if (!currentBounds) return false;
+        if (!selectedGeom)  return currentBounds.contains(latlng);
+        // Vérification bbox suffit pour l'infobulle
+        return currentBounds.contains(latlng);
+    }
+
+    map.on('mousemove', e => {
+        if (!tooltipActive || !isInsideDrawnArea(e.latlng)) {
+            tooltip.style.display = 'none';
+            return;
         }
+        const ndvi = getNdviAtLatLng(e.latlng);
+        if (ndvi === null) { tooltip.style.display = 'none'; return; }
+
+        // Couleur selon la valeur
+        let color = '#cc2200';
+        if (ndvi > 0.5) color = '#006421';
+        else if (ndvi > 0.3) color = '#228b22';
+        else if (ndvi > 0.1) color = '#e8a020';
+
+        // Libellé
+        let label = 'Sol nu';
+        if (ndvi < 0)       label = 'Eau / Ombre';
+        else if (ndvi<0.1)  label = 'Sol nu';
+        else if (ndvi<0.2)  label = 'Levée / Stress';
+        else if (ndvi<0.35) label = 'Végétation faible';
+        else if (ndvi<0.5)  label = 'Céréales / Orge';
+        else if (ndvi<0.65) label = 'Blé vigoureux';
+        else                label = 'Végétation dense';
+
+        tooltip.style.display = 'block';
+        tooltip.style.left    = (e.originalEvent.pageX + 16) + 'px';
+        tooltip.style.top     = (e.originalEvent.pageY - 36) + 'px';
+        tooltip.innerHTML     = `<span style="color:${color};font-weight:700;">NDVI ${ndvi}</span><br>
+                                  <span style="font-size:10px;opacity:.85;">${label}</span>`;
+    });
+
+    map.on('mouseout', () => { tooltip.style.display = 'none'; });
+
+    /* ═══════════════════════════════════════════════════════
+       UI HELPERS
+    ═══════════════════════════════════════════════════════ */
+    function setStatus(msg, cls) {
+        const el = document.getElementById('status');
+        el.className = cls; el.innerHTML = msg;
+    }
+
+    function showAreaDisplay(stats=null) {
+        let html = `📏 Superficie : <b>${totalAreaHa} ha</b>`;
+        if (stats) for (const [k,v] of Object.entries(stats))
+            html += `<br>${v.icon} <span style="color:${v.color}">${k} : ${v.ha} ha</span>`;
         const el = document.getElementById('areaDisplay');
         el.innerHTML = html; el.style.display = 'block';
+    }
+
+    function updateModeLabel(isCompare=false) {
+        const lbl   = document.getElementById('modeLabel');
+        const mode  = document.getElementById('modeSelect').value;
+        const names = {ndvi_cereal:'NDVI Céréales',ndvi_classic:'NDVI Classique',classify_a:'Classification A',true_color:'RGB'};
+        lbl.style.display = 'block';
+        lbl.textContent   = (isCompare ? '⚖ Comparaison · ' : '') + (names[mode]||mode);
     }
 
     /* ═══════════════════════════════════════════════════════
@@ -511,172 +570,240 @@ function evaluatePixel(s) {
     ═══════════════════════════════════════════════════════ */
     async function getToken() {
         if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-        const r = await fetch('https://services.sentinel-hub.com/oauth/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ grant_type:'client_credentials', client_id:CLIENT_ID, client_secret:CLIENT_SECRET })
+        const r = await fetch('https://services.sentinel-hub.com/oauth/token',{
+            method:'POST',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body:new URLSearchParams({grant_type:'client_credentials',client_id:CLIENT_ID,client_secret:CLIENT_SECRET})
         });
-        if (!r.ok) throw new Error('Auth échouée (' + r.status + ')');
+        if (!r.ok) throw new Error('Auth échouée ('+r.status+')');
         const d = await r.json();
         cachedToken = d.access_token;
-        tokenExpiry = Date.now() + (d.expires_in - 60) * 1000;
+        tokenExpiry = Date.now()+(d.expires_in-60)*1000;
         return cachedToken;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       STATUT
-    ═══════════════════════════════════════════════════════ */
-    function setStatus(msg, cls) {
-        const el = document.getElementById('status');
-        el.className = cls; el.innerHTML = msg;
     }
 
     /* ═══════════════════════════════════════════════════════
        RECHERCHE
     ═══════════════════════════════════════════════════════ */
-    document.getElementById('searchBtn').onclick = async function () {
+    document.getElementById('searchBtn').onclick = async function() {
         this.disabled = true;
-        setStatus('<span class="spin"></span>Connexion...', 's-info');
+        setStatus('<span class="spin"></span>Connexion...','s-info');
         clearAllLayers();
 
         try {
             const token = await getToken();
-            setStatus('<span class="spin"></span>Recherche en cours...', 's-info');
+            setStatus('<span class="spin"></span>Recherche en cours...','s-info');
 
-            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search',{
+                method:'POST',
+                headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+                body:JSON.stringify({
                     bbox:        currentBbox,
                     datetime:    `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
                     collections: ["sentinel-2-l2a"],
                     limit:       100
                 })
             });
-
             if (!res.ok) {
-                const e = await res.json().catch(() => ({}));
-                throw new Error(`Catalog ${res.status}: ${e.description || JSON.stringify(e)}`);
+                const e = await res.json().catch(()=>({}));
+                throw new Error(`Catalog ${res.status}: ${e.description||JSON.stringify(e)}`);
             }
 
             const data  = await res.json();
             const cMax  = parseInt(document.getElementById('cRange').value);
             const lMax  = parseInt(document.getElementById('lRange').value);
-            lastFeatures = (data.features || [])
-                .filter(f => (f.properties['eo:cloud_cover'] ?? 100) < cMax)
-                .slice(0, lMax);
+            lastFeatures = (data.features||[])
+                .filter(f=>(f.properties['eo:cloud_cover']??100)<cMax)
+                .slice(0,lMax);
 
-            if (lastFeatures.length === 0) {
-                setStatus('⚠️ Aucune image. Augmentez le seuil nuageux ou la période.', 's-err');
-                this.disabled = false; return;
+            if (!lastFeatures.length) {
+                setStatus('⚠️ Aucune image. Augmentez le seuil nuageux.','s-err');
+                this.disabled=false; return;
             }
 
             buildImageList(lastFeatures, token);
             updateChart(lastFeatures);
-            setStatus(`✅ ${lastFeatures.length} images disponibles.`, 's-ok');
+            setStatus(`✅ ${lastFeatures.length} images disponibles.`,'s-ok');
 
         } catch(e) {
             console.error(e);
-            setStatus('❌ ' + e.message, 's-err');
+            setStatus('❌ '+e.message,'s-err');
         }
         this.disabled = false;
     };
 
     /* ═══════════════════════════════════════════════════════
-       LISTE D'IMAGES
+       LISTE D'IMAGES — boutons créés en DOM pur (pas innerHTML)
     ═══════════════════════════════════════════════════════ */
-    function buildImageList(features, token) {
+    function buildImageList(features) {
         const list = document.getElementById('imageList');
         list.innerHTML = '';
         compareL = null; compareR = null;
-        document.getElementById('compareRow').style.display = 'none';
-        document.getElementById('compareInfo').style.display = 'none';
-        document.getElementById('resultsCard').style.display = 'block';
-        document.getElementById('downloadBtn').style.display = 'none';
+        document.getElementById('compareRow').style.display   = 'none';
+        document.getElementById('compareInfo').style.display  = 'none';
+        document.getElementById('resultsCard').style.display  = 'block';
+        document.getElementById('downloadBtn').style.display  = 'none';
 
         features.forEach(f => {
             const date   = f.properties.datetime.split('T')[0];
-            const clouds = Math.round(f.properties['eo:cloud_cover'] ?? 0);
-            const ctag   = clouds < 15 ? 'ctag-ok' : clouds < 40 ? 'ctag-mid' : 'ctag-bad';
+            const clouds = Math.round(f.properties['eo:cloud_cover']??0);
+            const ctag   = clouds<15?'ctag-ok':clouds<40?'ctag-mid':'ctag-bad';
 
             const item = document.createElement('div');
             item.className = 'img-item';
-            item.id = `item-${date}`;
-            item.innerHTML = `
-                <button class="eye-btn" id="eye-${date}" title="Afficher">👁</button>
-                <span class="date-label">📅 ${date}</span>
-                <span class="cloud-tag ${ctag}">☁ ${clouds}%</span>
-                <button class="sel-btn" data-date="${date}" data-side="L" title="Gauche (L)"
-                    style="font-size:10px;padding:2px 5px;border-radius:3px;border:none;cursor:pointer;background:#1e6fa8;color:white;">L</button>
-                <button class="sel-btn" data-date="${date}" data-side="R" title="Droite (R)"
-                    style="font-size:10px;padding:2px 5px;border-radius:3px;border:none;cursor:pointer;background:#9c27b0;color:white;">R</button>
-                <span id="badge-${date}"></span>`;
 
-            // Bouton œil — affichage simple
-            item.querySelector('.eye-btn').onclick = async () => {
-                const eyeBtn = document.getElementById(`eye-${date}`);
+            // 👁 Bouton affichage
+            const eyeBtn = document.createElement('button');
+            eyeBtn.className   = 'eye-btn';
+            eyeBtn.textContent = '👁';
+            eyeBtn.title       = 'Afficher sur la carte';
+
+            // Date
+            const dateSpan       = document.createElement('span');
+            dateSpan.className   = 'date-label';
+            dateSpan.textContent = '📅 '+date;
+
+            // Nuages
+            const cloudSpan       = document.createElement('span');
+            cloudSpan.className   = 'cloud-tag '+ctag;
+            cloudSpan.textContent = '☁ '+clouds+'%';
+
+            // Bouton L
+            const btnL = document.createElement('button');
+            btnL.textContent = 'L';
+            btnL.title       = 'Sélectionner côté Gauche';
+            btnL.className   = 'side-btn side-L';
+            btnL.style.cssText = 'font-size:11px;padding:3px 8px;border-radius:3px;border:2px solid #1e6fa8;cursor:pointer;background:transparent;color:#1e6fa8;font-weight:700;transition:.2s;';
+
+            // Bouton R
+            const btnR = document.createElement('button');
+            btnR.textContent = 'R';
+            btnR.title       = 'Sélectionner côté Droit';
+            btnR.className   = 'side-btn side-R';
+            btnR.style.cssText = 'font-size:11px;padding:3px 8px;border-radius:3px;border:2px solid #9c27b0;cursor:pointer;background:transparent;color:#9c27b0;font-weight:700;transition:.2s;';
+
+            // Badge sélection
+            const badge = document.createElement('span');
+            badge.className = 'sel-badge-slot';
+            badge.style.minWidth = '20px';
+
+            item.append(eyeBtn, dateSpan, cloudSpan, btnL, btnR, badge);
+            list.appendChild(item);
+
+            // ── Listener 👁 ──
+            eyeBtn.addEventListener('click', async () => {
                 if (activeLayers[date]) {
                     map.removeLayer(activeLayers[date]);
                     delete activeLayers[date];
                     eyeBtn.classList.remove('vis');
+                    // Désactiver infobulle si plus aucune couche visible
+                    if (Object.keys(activeLayers).length===0) disableTooltip();
                 } else {
                     eyeBtn.innerHTML = '<span class="spin" style="border-top-color:#1e6fa8"></span>';
+                    eyeBtn.disabled  = true;
                     try {
                         const t = await getToken();
-                        const layer = await buildLayer(date, t);
+                        // Charger couche visuelle (palette couleurs)
+                        const layer = await buildLayer(date, t, EVALSCRIPTS[document.getElementById('modeSelect').value]);
                         layer.addTo(map);
                         activeLayers[date] = layer;
                         eyeBtn.classList.add('vis');
-                        eyeBtn.innerHTML = '👁';
+
+                        // Charger couche NDVI valeurs (pour infobulle) en parallèle
+                        loadNdviValueLayer(date, t);
+
                         document.getElementById('downloadBtn').style.display = 'block';
-                        document.getElementById('downloadBtn').dataset.date = date;
                         updateModeLabel();
                     } catch(err) {
-                        setStatus('❌ ' + err.message, 's-err');
-                        eyeBtn.innerHTML = '👁';
+                        setStatus('❌ '+err.message,'s-err');
                     }
+                    eyeBtn.textContent = '👁';
+                    eyeBtn.disabled    = false;
                 }
                 document.getElementById('downloadBtn').style.display =
-                    Object.keys(activeLayers).length > 0 ? 'block' : 'none';
-            };
-
-            // Boutons L / R — sélection pour comparaison
-            item.querySelectorAll('.sel-btn').forEach(btn => {
-                btn.onclick = () => {
-                    const d = btn.dataset.date;
-                    const side = btn.dataset.side;
-                    if (side === 'L') {
-                        if (compareL === d) { compareL = null; }
-                        else { compareL = d; }
-                    } else {
-                        if (compareR === d) { compareR = null; }
-                        else { compareR = d; }
-                    }
-                    refreshBadges();
-                };
+                    Object.keys(activeLayers).length>0 ? 'block' : 'none';
             });
 
-            list.appendChild(item);
+            // ── Listener L ──
+            btnL.addEventListener('click', () => {
+                compareL = (compareL===date) ? null : date;
+                refreshSelectionUI();
+            });
+
+            // ── Listener R ──
+            btnR.addEventListener('click', () => {
+                compareR = (compareR===date) ? null : date;
+                refreshSelectionUI();
+            });
         });
     }
 
-    function refreshBadges() {
-        document.querySelectorAll('[id^="badge-"]').forEach(el => el.innerHTML = '');
-        document.querySelectorAll('.img-item').forEach(el => {
-            el.classList.remove('selected-L','selected-R');
+    // Charger une couche NDVI valeurs en arrière-plan pour l'infobulle
+    async function loadNdviValueLayer(date, token) {
+        try {
+            const layer = await buildLayer(date, token, EVALSCRIPT_NDVI_VALUE);
+            // Récupérer l'URL blob de cette couche
+            enableTooltip(layer._downloadUrl, currentBounds);
+        } catch(e) {
+            console.warn('NDVI value layer failed:', e.message);
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       SÉLECTION L/R — UI
+    ═══════════════════════════════════════════════════════ */
+    function refreshSelectionUI() {
+        // Reset tous les styles
+        document.querySelectorAll('.img-item').forEach(item => {
+            item.style.borderColor = '';
+            item.style.background  = '';
         });
+        document.querySelectorAll('.sel-badge-slot').forEach(el => el.innerHTML='');
+        document.querySelectorAll('.side-L').forEach(btn => {
+            btn.style.background = 'transparent';
+            btn.style.color      = '#1e6fa8';
+        });
+        document.querySelectorAll('.side-R').forEach(btn => {
+            btn.style.background = 'transparent';
+            btn.style.color      = '#9c27b0';
+        });
+
+        // Appliquer sélection L
         if (compareL) {
-            const el = document.getElementById(`item-${compareL}`);
-            if (el) { el.classList.add('selected-L'); }
-            const b = document.getElementById(`badge-${compareL}`);
-            if (b) b.innerHTML = '<span class="sel-badge sel-L">L</span>';
+            const items = document.querySelectorAll('.img-item');
+            items.forEach(item => {
+                const lBtn = item.querySelector('.side-L');
+                const badge = item.querySelector('.sel-badge-slot');
+                if (!lBtn) return;
+                // Identifier la date via le dateSpan
+                const dateSpan = item.querySelector('.date-label');
+                if (!dateSpan || !dateSpan.textContent.includes(compareL)) return;
+                item.style.borderColor = '#1e6fa8';
+                item.style.background  = '#e8f0fe';
+                lBtn.style.background  = '#1e6fa8';
+                lBtn.style.color       = 'white';
+                badge.innerHTML = '<span class="sel-badge sel-L">◀ L</span>';
+            });
         }
+
+        // Appliquer sélection R
         if (compareR) {
-            const el = document.getElementById(`item-${compareR}`);
-            if (el) { el.classList.add('selected-R'); }
-            const b = document.getElementById(`badge-${compareR}`);
-            if (b) b.innerHTML = '<span class="sel-badge sel-R">R</span>';
+            const items = document.querySelectorAll('.img-item');
+            items.forEach(item => {
+                const rBtn = item.querySelector('.side-R');
+                const badge = item.querySelector('.sel-badge-slot');
+                if (!rBtn) return;
+                const dateSpan = item.querySelector('.date-label');
+                if (!dateSpan || !dateSpan.textContent.includes(compareR)) return;
+                item.style.borderColor = '#9c27b0';
+                item.style.background  = '#f3e5f5';
+                rBtn.style.background  = '#9c27b0';
+                rBtn.style.color       = 'white';
+                badge.innerHTML = '<span class="sel-badge sel-R">R ▶</span>';
+            });
         }
+
+        // Afficher/masquer bouton Comparer
         const canCompare = compareL && compareR && compareL !== compareR;
         document.getElementById('compareRow').style.display = canCompare ? 'flex' : 'none';
     }
@@ -684,18 +811,17 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        COMPARAISON CÔTE-À-CÔTE
     ═══════════════════════════════════════════════════════ */
-    document.getElementById('compareBtn').onclick = async function () {
+    document.getElementById('compareBtn').addEventListener('click', async function() {
         if (!compareL || !compareR) return;
         this.disabled = true;
-        setStatus('<span class="spin"></span>Chargement des deux images...', 's-info');
-
-        // Retirer les couches existantes
+        setStatus('<span class="spin"></span>Chargement des deux images...','s-info');
         clearAllLayers();
 
         try {
-            const token = await getToken();
-            cLayerL = await buildLayer(compareL, token);
-            cLayerR = await buildLayer(compareR, token);
+            const token  = await getToken();
+            const script = EVALSCRIPTS[document.getElementById('modeSelect').value];
+            cLayerL = await buildLayer(compareL, token, script);
+            cLayerR = await buildLayer(compareR, token, script);
             cLayerL.addTo(map);
             cLayerR.addTo(map);
             slider = L.control.sideBySide(cLayerL, cLayerR).addTo(map);
@@ -703,124 +829,112 @@ function evaluatePixel(s) {
 
             const info = document.getElementById('compareInfo');
             info.style.display = 'block';
-            info.innerHTML = `<span style="color:var(--blue)">◀ ${compareL}</span> &nbsp;↔&nbsp; <span style="color:#9c27b0">${compareR} ▶</span>`;
+            info.innerHTML = `<span style="color:#1e6fa8;font-weight:700;">◀ ${compareL}</span>
+                              &nbsp;↔&nbsp;
+                              <span style="color:#9c27b0;font-weight:700;">${compareR} ▶</span>`;
 
-            setStatus(`✅ Comparaison active — glissez le curseur`, 's-ok');
+            setStatus('✅ Glissez le curseur pour comparer','s-ok');
             updateModeLabel(true);
+
+            // Infobulle sur l'image L pour la comparaison
+            loadNdviValueLayer(compareL, token);
 
         } catch(e) {
             console.error(e);
-            setStatus('❌ ' + e.message, 's-err');
+            setStatus('❌ '+e.message,'s-err');
         }
         this.disabled = false;
-    };
+    });
 
-    document.getElementById('clearCompBtn').onclick = () => {
+    document.getElementById('clearCompBtn').addEventListener('click', () => {
         clearAllLayers();
         compareL = null; compareR = null;
-        refreshBadges();
+        refreshSelectionUI();
         document.getElementById('compareInfo').style.display = 'none';
-        document.getElementById('modeLabel').style.display = 'none';
-        setStatus('Comparaison effacée.', 's-info');
-    };
+        document.getElementById('modeLabel').style.display   = 'none';
+        setStatus('Comparaison effacée.','s-info');
+        disableTooltip();
+    });
 
     function clearAllLayers() {
         Object.values(activeLayers).forEach(l => map.removeLayer(l));
         activeLayers = {};
-        if (cLayerL) { map.removeLayer(cLayerL); cLayerL = null; }
-        if (cLayerR) { map.removeLayer(cLayerR); cLayerR = null; }
-        if (slider)  { map.removeControl(slider); slider = null; }
+        if (cLayerL) { map.removeLayer(cLayerL); cLayerL=null; }
+        if (cLayerR) { map.removeLayer(cLayerR); cLayerR=null; }
+        if (slider)  { map.removeControl(slider); slider=null; }
         document.querySelectorAll('.eye-btn').forEach(b => {
-            b.classList.remove('vis');
-            b.innerHTML = '👁';
+            b.classList.remove('vis'); b.textContent='👁';
         });
-    }
-
-    function updateModeLabel(isCompare = false) {
-        const lbl = document.getElementById('modeLabel');
-        const mode = document.getElementById('modeSelect').value;
-        const names = { ndvi_cereal:'NDVI Céréales', ndvi_classic:'NDVI Classique', classify_a:'Classification A', true_color:'RGB' };
-        lbl.style.display = 'block';
-        lbl.textContent = (isCompare ? '⚖ Comparaison · ' : '') + (names[mode] || mode);
     }
 
     /* ═══════════════════════════════════════════════════════
        CONSTRUCTION COUCHE SENTINEL
     ═══════════════════════════════════════════════════════ */
-    async function buildLayer(date, token) {
-        const mode   = document.getElementById('modeSelect').value;
-        const script = EVALSCRIPTS[mode];
+    async function buildLayer(date, token, evalscript) {
         const bounds = selectedGeom
             ? { geometry: selectedGeom }
-            : { bbox: currentBbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } };
+            : { bbox: currentBbox, properties: { crs:"http://www.opengis.net/def/crs/OGC/1.3/CRS84" } };
 
-        const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        const r = await fetch('https://services.sentinel-hub.com/api/v1/process',{
+            method:'POST',
+            headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+            body:JSON.stringify({
                 input: {
                     bounds,
-                    data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: `${date}T00:00:00Z`, to: `${date}T23:59:59Z` } } }]
+                    data:[{type:"sentinel-2-l2a",dataFilter:{timeRange:{from:`${date}T00:00:00Z`,to:`${date}T23:59:59Z`}}}]
                 },
-                output: {
-                    width: 512, height: 512,
-                    responses: [{ identifier: "default", format: { type: "image/png" } }]
+                output:{
+                    width:512, height:512,
+                    responses:[{identifier:"default",format:{type:"image/png"}}]
                 },
-                evalscript: script
+                evalscript
             })
         });
 
         if (!r.ok) {
             const txt = await r.text();
             let msg = `Process API ${r.status}`;
-            try { msg += ': ' + (JSON.parse(txt).error?.message || txt.slice(0,120)); } catch { msg += ': ' + txt.slice(0,120); }
+            try { msg+=': '+(JSON.parse(txt).error?.message||txt.slice(0,120)); } catch { msg+=': '+txt.slice(0,120); }
             throw new Error(msg);
         }
-        if (!(r.headers.get('content-type') || '').includes('image')) {
+        if (!(r.headers.get('content-type')||'').includes('image')) {
             const txt = await r.text();
-            throw new Error('Réponse non-image: ' + txt.slice(0,120));
+            throw new Error('Réponse non-image: '+txt.slice(0,120));
         }
 
-        const blob = await r.blob();
-        const url  = URL.createObjectURL(blob);
-        const layer = L.imageOverlay(url, currentBounds, { opacity: 0.88 });
+        const blob  = await r.blob();
+        const url   = URL.createObjectURL(blob);
+        const layer = L.imageOverlay(url, currentBounds, {opacity:0.88});
         layer._downloadUrl  = url;
         layer._downloadDate = date;
         return layer;
     }
 
     /* ═══════════════════════════════════════════════════════
-       GRAPHIQUE NDVI TEMPOREL
+       GRAPHIQUE
     ═══════════════════════════════════════════════════════ */
     function updateChart(features) {
         document.getElementById('chartCard').style.display = 'block';
         const ctx = document.getElementById('ndviChart').getContext('2d');
         const rev = [...features].reverse();
-        const labels = rev.map(f => f.properties.datetime.split('T')[0]);
-        // NDVI estimé à partir de la couverture nuageuse (placeholder — sera remplacé par vraie valeur en Option B)
-        const vals = rev.map(f => {
-            const c = (f.properties['eo:cloud_cover'] ?? 50) / 100;
-            return +(0.65 - c * 0.4 + Math.random() * 0.05).toFixed(2);
-        });
         if (chartObj) chartObj.destroy();
         chartObj = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'NDVI estimé',
-                    data: vals,
-                    borderColor: '#1b6b35',
-                    backgroundColor: 'rgba(27,107,53,.12)',
-                    fill: true, tension: 0.35, pointRadius: 3
+            type:'line',
+            data:{
+                labels: rev.map(f=>f.properties.datetime.split('T')[0]),
+                datasets:[{
+                    label:'NDVI estimé',
+                    data: rev.map(f=>+( 0.65 - (f.properties['eo:cloud_cover']??50)/100*0.4 ).toFixed(2)),
+                    borderColor:'#1b6b35', backgroundColor:'rgba(27,107,53,.12)',
+                    fill:true, tension:0.35, pointRadius:3
                 }]
             },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { ticks: { font: { size: 9 }, maxTicksLimit: 6 } },
-                    y: { min: 0, max: 1, ticks: { font: { size: 9 } } }
+            options:{
+                responsive:true, maintainAspectRatio:false,
+                plugins:{legend:{display:false}},
+                scales:{
+                    x:{ticks:{font:{size:9},maxTicksLimit:6}},
+                    y:{min:0,max:1,ticks:{font:{size:9}}}
                 }
             }
         });
@@ -829,27 +943,25 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        EXPORT
     ═══════════════════════════════════════════════════════ */
-    document.getElementById('downloadBtn').onclick = function () {
-        // Télécharger la couche visible la plus récente
-        const layers = Object.values(activeLayers);
-        const src = layers.length ? layers[layers.length-1] : (cLayerL || null);
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+        const src = Object.values(activeLayers).pop() || cLayerL;
         if (!src) return;
         const a = document.createElement('a');
         a.href = src._downloadUrl;
-        a.download = `NDVI_${src._downloadDate || 'export'}.png`;
+        a.download = `NDVI_${src._downloadDate||'export'}.png`;
         a.click();
-    };
+    });
 
-    document.getElementById('exportBtn').onclick = () => {
+    document.getElementById('exportBtn').addEventListener('click', () => {
         if (!lastFeatures.length) return;
-        let csv = "Date,Couverture_Nuageuse_%\n";
-        lastFeatures.forEach(f => {
-            csv += `${f.properties.datetime.split('T')[0]},${Math.round(f.properties['eo:cloud_cover'] ?? 0)}\n`;
-        });
+        let csv = "Date,Nuages_%\n";
+        lastFeatures.forEach(f =>
+            csv += f.properties.datetime.split('T')[0] + ',' + Math.round(f.properties['eo:cloud_cover']??0) + '\n'
+        );
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+        a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
         a.download = 'campagne_ndvi.csv'; a.click();
-    };
+    });
 </script>
 </body>
 </html>
