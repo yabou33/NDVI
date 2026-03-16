@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>NDVI Tunisie - Solution Ultime</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/shapefile@0.6.6/dist/shapefile.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #f0f2f5; }
+        #sidebar { width: 380px; padding: 20px; background: white; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
+        #map { flex-grow: 1; }
+        .card { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        h2 { color: #1b5e20; font-size: 1.2em; border-bottom: 2px solid #1b5e20; padding-bottom: 5px; }
+        button { width: 100%; padding: 12px; background: #1b5e20; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .status { font-size: 0.85em; padding: 10px; margin-top: 10px; border-radius: 5px; display: none; line-height: 1.4; }
+        .err { background: #ffebee; color: #c62828; display: block; border: 1px solid #ef9a9a; }
+        .ok { background: #e8f5e9; color: #2e7d32; display: block; border: 1px solid #a5d6a7; }
+        .img-item { padding: 10px; border: 1px solid #eee; margin-top: 8px; cursor: pointer; border-radius: 6px; transition: 0.3s; }
+        .img-item:hover { border-color: #2196f3; }
+        .img-item.active { background: #e3f2fd; border-color: #2196f3; border-left: 5px solid #2196f3; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2>Analyse Satellite NDVI</h2>
+    
+    <div class="card">
+        <label><strong>1. Charger le Shapefile (ZIP)</strong></label>
+        <input type="file" id="fileInput" accept=".zip" style="margin-top:10px;">
+    </div>
+
+    <div class="card">
+        <label><strong>2. Choisir la Région</strong></label>
+        <select id="regionSelect" disabled><option>Attente du fichier...</option></select>
+    </div>
+
+    <div class="card">
+        <label><strong>3. Paramètres</strong></label>
+        <div style="display:flex; gap:5px; margin-top:5px;">
+            <input type="date" id="dateStart" value="2025-01-01">
+            <input type="date" id="dateEnd" value="2026-03-16">
+        </div>
+        <button id="searchBtn" disabled>Lancer l'Analyse</button>
+        <div id="statusBox" class="status"></div>
+    </div>
+
+    <div id="resultsArea" class="card" style="display:none;">
+        <label><strong>4. Comparaison (Sélectionnez 2 dates)</strong></label>
+        <div id="imageList"></div>
+        <button id="compareBtn" style="background:#0277bd; display:none;">Comparer avec le Curseur</button>
+    </div>
+</div>
+
+<div id="map"></div>
+
+<script>
+    // Identifiants Sentinel Hub
+    const CLIENT_ID = "dc2f3882-dcbe-4b42-a15b-3002da57f3c1";
+    const CLIENT_SECRET = "k2ZxNFntHBARmso5aP0yOeOeleNkREr0";
+    
+    // On essaie un autre proxy plus permissif si le premier échoue
+    const PROXY_URL = "https://api.allorigins.win/raw?url=";
+
+    const map = L.map('map').setView([34, 9], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    let highlightLayer = L.layerGroup().addTo(map);
+    let geoJSONData, leftLayer, rightLayer, swipeControl, selectedItems = [];
+
+    proj4.defs("EPSG:32632", "+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs");
+
+    function updateStatus(msg, type) {
+        const box = document.getElementById('statusBox');
+        box.innerText = msg;
+        box.className = "status " + (type === "error" ? "err" : "ok");
+    }
+
+    // Gestion du Shapefile
+    document.getElementById('fileInput').onchange = async (e) => {
+        try {
+            const zip = await JSZip.loadAsync(e.target.files[0]);
+            const shp = await zip.file(/\.shp$/i)[0].async("arraybuffer");
+            const dbf = await zip.file(/\.dbf$/i)[0].async("arraybuffer");
+            
+            shapefile.read(shp, dbf).then(data => {
+                data.features.forEach(f => {
+                    const transform = (c) => proj4("EPSG:32632", "WGS84", c);
+                    if (f.geometry.type === "Polygon") f.geometry.coordinates = f.geometry.coordinates.map(r => r.map(transform));
+                    else f.geometry.coordinates = f.geometry.coordinates.map(p => p.map(r => r.map(transform)));
+                });
+                geoJSONData = data;
+                const sel = document.getElementById('regionSelect');
+                sel.innerHTML = '<option value="">-- Sélectionner --</option>';
+                data.features.forEach((f, i) => sel.add(new Option(f.properties.nm_gouv_fr || `Zone ${i+1}`, i)));
+                sel.disabled = false;
+                document.getElementById('searchBtn').disabled = false;
+                updateStatus("Shapefile chargé avec succès.", "ok");
+            });
+        } catch(err) { updateStatus("Erreur de lecture du ZIP.", "error"); }
+    };
+
+    document.getElementById('regionSelect').onchange = (e) => {
+        const feat = geoJSONData.features[e.target.value];
+        highlightLayer.clearLayers();
+        const l = L.geoJSON(feat, {style:{color:'#1b5e20', weight:2, fillOpacity:0.1}}).addTo(highlightLayer);
+        map.fitBounds(l.getBounds());
+    };
+
+    // Authentification via Proxy AllOrigins (Pas d'activation requise)
+    async function getAccessToken() {
+        const targetUrl = 'https://services.sentinel-hub.com/oauth/token';
+        const body = `grant_type=client_credentials&client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}`;
+        
+        try {
+            // On tente d'abord en direct (si le serveur le permet)
+            let response = await fetch(targetUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: body
+            });
+
+            if (!response.ok) {
+                // Si échec direct, on passe par le proxy allorigins
+                updateStatus("Tentative via Proxy de secours...", "ok");
+                response = await fetch(PROXY_URL + encodeURIComponent(targetUrl), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: body
+                });
+            }
+            
+            const data = await response.json();
+            return data.access_token;
+        } catch(e) { 
+            return null; 
+        }
+    }
+
+    document.getElementById('searchBtn').onclick = async () => {
+        updateStatus("Connexion aux satellites...", "ok");
+        const token = await getAccessToken();
+        
+        if (!token) {
+            updateStatus("Erreur : Impossible de contacter Sentinel Hub. Le serveur bloque tout accès extérieur.", "error");
+            return;
+        }
+
+        try {
+            const feat = geoJSONData.features[document.getElementById('regionSelect').value];
+            const bounds = L.geoJSON(feat).getBounds();
+            const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+
+            const catalogUrl = 'https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search';
+            const res = await fetch(catalogUrl, {
+                method: 'POST',
+                headers: {'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    "bbox": bbox,
+                    "datetime": `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
+                    "collections": ["sentinel-2-l2a"],
+                    "limit": 10,
+                    "query": {"eo:cloud_cover": {"lt": 30}}
+                })
+            });
+
+            const data = await res.json();
+            const list = document.getElementById('imageList');
+            list.innerHTML = "";
+            selectedItems = [];
+            document.getElementById('resultsArea').style.display = "block";
+
+            data.features.forEach(item => {
+                const dateStr = item.properties.datetime.split('T')[0];
+                const div = document.createElement('div');
+                div.className = 'img-item';
+                div.innerHTML = `📅 <b>${dateStr}</b> <br><small>Nuages : ${Math.round(item.properties["eo:cloud_cover"])}%</small>`;
+                div.onclick = () => {
+                    const idx = selectedItems.findIndex(s => s.date === dateStr);
+                    if(idx > -1) {
+                        selectedItems.splice(idx, 1);
+                        div.classList.remove('active');
+                    } else if(selectedItems.length < 2) {
+                        selectedItems.push({date: dateStr, bbox, bounds, token});
+                        div.classList.add('active');
+                    }
+                    document.getElementById('compareBtn').style.display = selectedItems.length > 0 ? "block" : "none";
+                };
+                list.appendChild(div);
+            });
+            updateStatus("Analyse terminée. Choisissez vos dates.", "ok");
+        } catch(e) { updateStatus("Erreur lors de la récupération des images.", "error"); }
+    };
+
+    document.getElementById('compareBtn').onclick = async () => {
+        if(leftLayer) map.removeLayer(leftLayer);
+        if(rightLayer) map.removeLayer(rightLayer);
+        if(swipeControl) map.removeControl(swipeControl);
+
+        updateStatus("Calcul du NDVI en cours...", "ok");
+        leftLayer = await fetchNDVILayer(selectedItems[0]);
+        leftLayer.addTo(map);
+
+        if(selectedItems[1]) {
+            rightLayer = await fetchNDVILayer(selectedItems[1]);
+            rightLayer.addTo(map);
+            swipeControl = L.control.sideBySide(leftLayer, rightLayer).addTo(map);
+            updateStatus("Mode comparaison actif.", "ok");
+        }
+    };
+
+    async function fetchNDVILayer(img) {
+        const evalscript = `//VERSION=3
+            function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
+            function evaluate(s) {
+                let v = (s.B08 - s.B04) / (s.B08 + s.B04);
+                if (s.dataMask == 0) return [0,0,0,0];
+                if (v < 0.2) return [0.7, 0.1, 0.1, 1]; // Rouge (Sol nu)
+                if (v < 0.4) return [0.9, 0.9, 0.3, 1]; // Jaune (Faible)
+                return [0.1, 0.5, 0.1, 1]; // Vert (Dense)
+            }`;
+
+        const processUrl = 'https://services.sentinel-hub.com/api/v1/process';
+        const r = await fetch(processUrl, {
+            method: 'POST',
+            headers: {'Authorization': `Bearer ${img.token}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                input: {
+                    bounds: { bbox: img.bbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } },
+                    data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: img.date+"T00:00:00Z", to: img.date+"T23:59:59Z" } } }]
+                },
+                output: { responses: [{ format: { type: "image/png" } }] },
+                evalscript: evalscript
+            })
+        });
+        const blob = await r.blob();
+        return L.imageOverlay(URL.createObjectURL(blob), img.bounds);
+    }
+</script>
+</body>
+</html>
