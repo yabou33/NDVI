@@ -481,8 +481,6 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        INFOBULLE NDVI — activée seulement sur parcelle + image visible
     ═══════════════════════════════════════════════════════ */
-    const tooltip = document.getElementById('ndvi-tooltip');
-
     function enableTooltip(ndviImgUrl, bounds) {
         // Charger l'image NDVI dans un canvas offscreen pour lire les pixels
         const img = new Image();
