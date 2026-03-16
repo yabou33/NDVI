@@ -174,6 +174,128 @@
         /* spinner */
         .spin { display:inline-block;width:11px;height:11px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:4px;}
         @keyframes sp{to{transform:rotate(360deg)}}
+
+        /* ── PANNEAU DROIT DE COMPARAISON ── */
+        #right-panel {
+            width: 0;
+            min-width: 0;
+            background: var(--green-deep);
+            border-left: 1px solid #1a4a28;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            overflow: hidden;
+            transition: width .35s cubic-bezier(.4,0,.2,1), min-width .35s;
+            box-shadow: -3px 0 20px rgba(0,0,0,.2);
+            flex-shrink: 0;
+        }
+        #right-panel.open {
+            width: 280px;
+            min-width: 280px;
+        }
+        #rp-header {
+            padding: 12px 14px 10px;
+            color: white;
+            flex-shrink: 0;
+            border-bottom: 1px solid #1a4a28;
+        }
+        #rp-header h3 {
+            font-family: var(--serif);
+            font-size: 1em;
+            font-weight: 600;
+            margin: 0 0 2px;
+        }
+        #rp-header p { font-size: 10px; opacity:.6; letter-spacing:.03em; text-transform:uppercase; }
+        #rp-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+        #rp-body::-webkit-scrollbar { width: 3px; }
+        #rp-body::-webkit-scrollbar-thumb { background: #1a4a28; }
+
+        .rp-slot {
+            margin-bottom: 14px;
+        }
+        .rp-slot-label {
+            font-size: 10px; letter-spacing:.06em; text-transform:uppercase;
+            color: rgba(255,255,255,.5); margin-bottom: 6px;
+            display: flex; align-items:center; gap:5px;
+        }
+        .rp-slot-label span { color:white; font-weight:700; }
+        .rp-img-box {
+            width: 100%;
+            aspect-ratio: 1;
+            background: #0a2d14;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #1a4a28;
+            position: relative;
+            display: flex; align-items:center; justify-content:center;
+        }
+        .rp-img-box img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .rp-img-box .rp-empty {
+            color: rgba(255,255,255,.25);
+            font-size: 11px; text-align:center; padding:20px;
+        }
+        .rp-img-box .rp-loading {
+            position: absolute; inset:0;
+            background: rgba(0,0,0,.6);
+            display: flex; align-items:center; justify-content:center;
+            color: white; font-size:11px;
+        }
+        .rp-date-tag {
+            margin-top: 6px;
+            font-size: 11px; color: rgba(255,255,255,.7);
+            text-align: center;
+        }
+        .rp-close-btn {
+            position: absolute; top: 8px; right: 8px;
+            background: rgba(0,0,0,.5); border: none;
+            color: white; border-radius: 3px;
+            padding: 2px 6px; font-size: 12px;
+            cursor: pointer; opacity:.7;
+        }
+        .rp-close-btn:hover { opacity:1; }
+        #rp-toggle {
+            position: absolute;
+            right: 0; top: 50%;
+            transform: translateY(-50%);
+            z-index: 1001;
+            background: var(--green-deep);
+            color: white; border: none;
+            padding: 10px 5px;
+            border-radius: 6px 0 0 6px;
+            cursor: pointer; font-size: 13px;
+            box-shadow: -2px 0 8px rgba(0,0,0,.3);
+            writing-mode: vertical-rl;
+            letter-spacing: .05em;
+            font-family: var(--mono);
+            font-size: 10px;
+            display: none;
+        }
+        #rp-legend {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #1a4a28;
+        }
+        .rp-legend-title {
+            font-size: 10px; color: rgba(255,255,255,.5);
+            text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px;
+        }
+        .rp-legend-row {
+            display: flex; align-items:center; gap:6px;
+            font-size: 11px; color: rgba(255,255,255,.8);
+            margin-bottom: 3px;
+        }
+        .rp-dot { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+
+        /* Bouton R dans la liste — maintenant ouvre le panneau droit */
+        .side-R.rp-active { background: #9c27b0 !important; color: white !important; }
     </style>
 </head>
 <body>
@@ -258,11 +380,7 @@
             <div id="imageList"></div>
 
             <!-- Comparaison -->
-            <div id="compareRow">
-                <button class="btn btn-compare" id="compareBtn">⚖️ Comparer (L ↔ R)</button>
-                <button class="btn btn-slate"   id="clearCompBtn">✕ Reset</button>
-            </div>
-            <div id="compareInfo"></div>
+            <!-- compareRow remplacé par panneau droit -->
 
             <button class="btn btn-slate" id="downloadBtn" style="display:none;margin-top:8px;">⬇️ Télécharger l'image visible</button>
         </div>
@@ -272,6 +390,43 @@
 
 <div id="map">
     <div id="modeLabel"></div>
+</div>
+
+<!-- PANNEAU DROIT COMPARAISON -->
+<div id="right-panel">
+    <div id="rp-header">
+        <h3>🔍 Comparaison</h3>
+        <p>Image de référence sélectionnée</p>
+    </div>
+    <div id="rp-body">
+        <!-- Slot image principale (celle affichée sur carte) -->
+        <div class="rp-slot" id="rp-slot-main">
+            <div class="rp-slot-label">Image carte <span id="rp-main-date">—</span></div>
+            <div class="rp-img-box" id="rp-main-box">
+                <div class="rp-empty">Affichez une image<br>sur la carte</div>
+            </div>
+        </div>
+
+        <!-- Slot image comparaison (R) -->
+        <div class="rp-slot" id="rp-slot-ref">
+            <div class="rp-slot-label">Comparaison <span id="rp-ref-date">—</span></div>
+            <div class="rp-img-box" id="rp-ref-box">
+                <div class="rp-empty">Cliquez <b style="color:#ce93d8">R</b><br>sur une image</div>
+            </div>
+        </div>
+
+        <!-- Mini légende -->
+        <div id="rp-legend">
+            <div class="rp-legend-title">Légende NDVI</div>
+            <div class="rp-legend-row"><div class="rp-dot" style="background:#1461bf"></div>Eau / Oued</div>
+            <div class="rp-legend-row"><div class="rp-dot" style="background:#006421"></div>Blé vigueur haute</div>
+            <div class="rp-legend-row"><div class="rp-dot" style="background:#228b22"></div>Orge / Céréales</div>
+            <div class="rp-legend-row"><div class="rp-dot" style="background:#ffff00"></div>Levée / Stress</div>
+            <div class="rp-legend-row"><div class="rp-dot" style="background:#cc2200"></div>Sol nu</div>
+            <div class="rp-legend-row"><div class="rp-dot" style="background:#599926"></div>Oliviers / Arbo</div>
+            <div class="rp-legend-row"><div class="rp-dot" style="background:#00cc99"></div>Maraîcher</div>
+        </div>
+    </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -642,38 +797,7 @@ function evaluatePixel(s) {
         return currentBounds.contains(latlng);
     }
 
-    map.on('mousemove', e => {
-        if (!tooltipActive || !isInsideDrawnArea(e.latlng)) {
-            tooltip.style.display = 'none';
-            return;
-        }
-        const ndvi = getNdviAtLatLng(e.latlng);
-        if (ndvi === null) { tooltip.style.display = 'none'; return; }
 
-        // Couleur selon la valeur
-        let color = '#cc2200';
-        if (ndvi > 0.5) color = '#006421';
-        else if (ndvi > 0.3) color = '#228b22';
-        else if (ndvi > 0.1) color = '#e8a020';
-
-        // Libellé
-        let label = 'Sol nu';
-        if (ndvi < 0)       label = 'Eau / Ombre';
-        else if (ndvi<0.1)  label = 'Sol nu';
-        else if (ndvi<0.2)  label = 'Levée / Stress';
-        else if (ndvi<0.35) label = 'Végétation faible';
-        else if (ndvi<0.5)  label = 'Céréales / Orge';
-        else if (ndvi<0.65) label = 'Blé vigoureux';
-        else                label = 'Végétation dense';
-
-        tooltip.style.display = 'block';
-        tooltip.style.left    = (e.originalEvent.pageX + 16) + 'px';
-        tooltip.style.top     = (e.originalEvent.pageY - 36) + 'px';
-        tooltip.innerHTML     = `<span style="color:${color};font-weight:700;">NDVI ${ndvi}</span><br>
-                                  <span style="font-size:10px;opacity:.85;">${label}</span>`;
-    });
-
-    map.on('mouseout', () => { tooltip.style.display = 'none'; });
 
     /* ═══════════════════════════════════════════════════════
        UI HELPERS
@@ -774,7 +898,7 @@ function evaluatePixel(s) {
         compareL = null; compareR = null;
         // Vider la map de références
         Object.keys(dateItemMap).forEach(k => delete dateItemMap[k]);
-        document.getElementById('compareRow').style.display   = 'none';
+        // compareRow désactivé — comparaison via panneau droit
         document.getElementById('compareInfo').style.display  = 'none';
         document.getElementById('resultsCard').style.display  = 'block';
         document.getElementById('downloadBtn').style.display  = 'none';
@@ -847,7 +971,10 @@ function evaluatePixel(s) {
                         activeLayers[date] = layer;
                         eyeBtn.classList.add('vis');
 
-                        // Charger couche NDVI valeurs (pour infobulle) en parallèle
+                        // Mettre à jour le slot "carte" dans le panneau droit
+                        rpSetMain(layer._downloadUrl, date);
+
+                        // Charger couche NDVI valeurs (pour infobulle + surfaces) en parallèle
                         loadNdviValueLayer(date, t);
 
                         document.getElementById('downloadBtn').style.display = 'block';
@@ -868,10 +995,30 @@ function evaluatePixel(s) {
                 refreshSelectionUI();
             });
 
-            // ── Listener R ──
-            btnR.addEventListener('click', () => {
-                compareR = (compareR===date) ? null : date;
-                refreshSelectionUI();
+            // ── Listener R — ouvre panneau droit ──
+            btnR.addEventListener('click', async () => {
+                if (compareR === date) {
+                    // Désélectionner
+                    compareR = null;
+                    btnR.style.background = 'transparent';
+                    btnR.style.color      = '#9c27b0';
+                    rpClearRef();
+                } else {
+                    // Désélectionner l'ancien R
+                    if (compareR && dateItemMap[compareR]) {
+                        const old = dateItemMap[compareR];
+                        old.btnR.style.background = 'transparent';
+                        old.btnR.style.color      = '#9c27b0';
+                        old.badge.innerHTML = old.badge.innerHTML.replace(/<span class="sel-badge sel-R">.*?<\/span>/, '');
+                    }
+                    compareR = date;
+                    btnR.style.background = '#9c27b0';
+                    btnR.style.color      = 'white';
+                    if (dateItemMap[date]) {
+                        dateItemMap[date].badge.innerHTML = '<span class="sel-badge sel-R">R ▶</span>';
+                    }
+                    await rpSetRef(date);
+                }
             });
         });
     }
@@ -938,7 +1085,8 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        COMPARAISON CÔTE-À-CÔTE
     ═══════════════════════════════════════════════════════ */
-    document.getElementById('compareBtn').addEventListener('click', async function() {
+    // compareBtn désactivé
+    if(false) {
         if (!compareL || !compareR) return;
         this.disabled = true;
         setStatus('<span class="spin"></span>Chargement des deux images...','s-info');
@@ -973,7 +1121,8 @@ function evaluatePixel(s) {
         this.disabled = false;
     });
 
-    document.getElementById('clearCompBtn').addEventListener('click', () => {
+    // clearCompBtn désactivé
+    if(false) {
         clearAllLayers();
         compareL = null; compareR = null;
         refreshSelectionUI();
@@ -1070,7 +1219,79 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        EXPORT
     ═══════════════════════════════════════════════════════ */
-    document.getElementById('downloadBtn').addEventListener('click', () => {
+    /* ═══════════════════════════════════════════════════════
+       PANNEAU DROIT — fonctions
+    ═══════════════════════════════════════════════════════ */
+
+    function openRightPanel() {
+        document.getElementById('right-panel').classList.add('open');
+    }
+
+    // Affiche une image dans le slot "carte" (main)
+    function rpSetMain(blobUrl, date) {
+        const box = document.getElementById('rp-main-box');
+        document.getElementById('rp-main-date').textContent = date;
+        box.innerHTML = `<img src="${blobUrl}" alt="NDVI ${date}">`;
+        openRightPanel();
+    }
+
+    // Affiche une image dans le slot "comparaison" (ref R)
+    async function rpSetRef(date) {
+        const box = document.getElementById('rp-ref-box');
+        document.getElementById('rp-ref-date').textContent = date;
+        box.innerHTML = '<div class="rp-loading"><span class="spin"></span> Chargement...</div>';
+        openRightPanel();
+        try {
+            const token  = await getToken();
+            const script = EVALSCRIPTS[document.getElementById('modeSelect').value];
+            const layer  = await buildLayer(date, token, script);
+            box.innerHTML = `<img src="${layer._downloadUrl}" alt="NDVI ${date}">`;
+        } catch(e) {
+            box.innerHTML = `<div class="rp-empty" style="color:#ff8a80">Erreur: ${e.message.slice(0,60)}</div>`;
+        }
+    }
+
+    function rpClearRef() {
+        const box = document.getElementById('rp-ref-box');
+        box.innerHTML = '<div class="rp-empty">Cliquez <b style="color:#ce93d8">R</b><br>sur une image</div>';
+        document.getElementById('rp-ref-date').textContent = '—';
+        // Fermer panneau si les deux slots sont vides
+        const mainBox = document.getElementById('rp-main-box');
+        if (!mainBox.querySelector('img')) {
+            document.getElementById('right-panel').classList.remove('open');
+        }
+    }
+
+    /* ── Infobulle NDVI (valeur réelle + libellé) ── */
+    map.on('mousemove', e => {
+        if (!tooltipActive || !isInsideDrawnArea(e.latlng)) {
+            tooltip.style.display = 'none';
+            return;
+        }
+        const ndvi = getNdviAtLatLng(e.latlng);
+        if (ndvi === null) { tooltip.style.display = 'none'; return; }
+
+        let color = '#cc2200', label = 'Sol nu';
+        if (ndvi < -0.05)      { color='#1461bf'; label='Eau / Ombre'; }
+        else if (ndvi < 0.05)  { color='#bf4026'; label='Sol nu'; }
+        else if (ndvi < 0.15)  { color='#cc8c33'; label='Jachère'; }
+        else if (ndvi < 0.25)  { color='#e8c800'; label='Levée / Stress'; }
+        else if (ndvi < 0.40)  { color='#73bf33'; label='Orge / Céréales'; }
+        else if (ndvi < 0.55)  { color='#006421'; label='Blé (vigoureux)'; }
+        else if (ndvi < 0.70)  { color='#599926'; label='Oliviers / Arbo'; }
+        else                   { color='#00cc99'; label='Maraîcher / Irrigué'; }
+
+        tooltip.style.display = 'block';
+        tooltip.style.left    = (e.originalEvent.pageX + 16) + 'px';
+        tooltip.style.top     = (e.originalEvent.pageY - 42) + 'px';
+        tooltip.innerHTML =
+            `<span style="color:${color};font-weight:700;font-size:13px;">NDVI ${ndvi > 0 ? '+' : ''}${ndvi}</span><br>
+             <span style="font-size:11px;opacity:.9;">${label}</span>`;
+    });
+
+    map.on('mouseout', () => { tooltip.style.display = 'none'; });
+
+        document.getElementById('downloadBtn').addEventListener('click', () => {
         const src = Object.values(activeLayers).pop() || cLayerL;
         if (!src) return;
         const a = document.createElement('a');
