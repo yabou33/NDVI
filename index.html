@@ -130,15 +130,18 @@
             const token = await getToken();
             loading('Recherche d\'images satellites...');
 
-            // ✅ FIX : utiliser "filter" au lieu de "query" (deprecated dans STAC 1.0)
-            //         et passer le bbox correctement
+            // ✅ FIX : CQL2-JSON obligatoire pour les requêtes POST sur Sentinel Hub
+            //         cql2-text n'est supporté qu'en GET → 400 en POST
             const body = {
                 bbox:        BBOX,
                 datetime:    "2025-01-01T00:00:00Z/2026-03-16T23:59:59Z",
                 collections: ["sentinel-2-l2a"],
                 limit:       12,
-                filter:      "eo:cloud_cover < 30",
-                "filter-lang": "cql2-text"
+                filter: {
+                    op:   "lt",
+                    args: [ { property: "eo:cloud_cover" }, 30 ]
+                },
+                "filter-lang": "cql2-json"
             };
 
             const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
