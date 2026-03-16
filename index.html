@@ -899,7 +899,7 @@ function evaluatePixel(s) {
         // Vider la map de références
         Object.keys(dateItemMap).forEach(k => delete dateItemMap[k]);
         // compareRow désactivé — comparaison via panneau droit
-        document.getElementById('compareInfo').style.display  = 'none';
+        
         document.getElementById('resultsCard').style.display  = 'block';
         document.getElementById('downloadBtn').style.display  = 'none';
 
@@ -1075,10 +1075,10 @@ function evaluatePixel(s) {
 
         // 4. Bouton Comparer — visible seulement si L et R différents sont choisis
         const canCompare = compareL && compareR && compareL !== compareR;
-        const row = document.getElementById('compareRow');
-        row.style.display = canCompare ? 'flex' : 'none';
+        const row = null;
+        if(row) row.style.display = canCompare ? 'flex' : 'none';
         if (canCompare) {
-            row.scrollIntoView({behavior:'smooth', block:'nearest'});
+            if(row) row.scrollIntoView({behavior:'smooth', block:'nearest'});
         }
     }
 
