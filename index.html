@@ -2,163 +2,283 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Analyse NDVI Tunisie - Stable</title>
+    <title>Explorateur NDVI Tunisie</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
-        #sidebar { width: 350px; padding: 20px; background: #fdfdfd; border-right: 1px solid #ccc; z-index: 1000; overflow-y: auto; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #f4f7f6; }
+        #sidebar { width: 380px; padding: 20px; background: white; border-right: 1px solid #ddd; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.05); }
         #map { flex-grow: 1; }
-        .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
-        select, input, button { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; }
-        button { background: #2e7d32; color: white; border: none; cursor: pointer; font-weight: bold; }
-        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 5px; cursor: pointer; border-radius: 3px; font-size: 0.9em; }
-        .img-item.active { background: #e8f5e9; border-color: #2e7d32; }
-        #status { color: #d32f2f; font-size: 0.8em; margin-top: 10px; }
+        .card { border: 1px solid #e0e0e0; padding: 15px; border-radius: 8px; margin-bottom: 15px; background: #fff; }
+        h2 { color: #2e7d32; font-size: 1.4em; margin-top: 0; }
+        select, input { width: 100%; padding: 10px; margin-top: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; box-sizing: border-box; }
+        button { width: 100%; padding: 11px; margin-top: 8px; border-radius: 4px; border: none; font-size: 14px; background: #2e7d32; color: white; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #1b5e20; }
+        button:disabled { background: #aaa; cursor: not-allowed; }
+        #status { margin-top: 10px; font-size: 0.85em; padding: 8px 10px; border-radius: 4px; display: none; }
+        #status.error   { background: #fdecea; color: #c62828; display: block; }
+        #status.success { background: #e8f5e9; color: #2e7d32; display: block; }
+        #status.info    { background: #e3f2fd; color: #1565c0; display: block; }
+        .img-item { border: 1px solid #ddd; padding: 10px; margin-top: 8px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; transition: 0.2s; }
+        .img-item:hover { background: #f9f9f9; }
+        .img-item.active { border-color: #1976d2; background: #e3f2fd; color: #1565c0; font-weight: bold; }
+        .legend { margin-top: 12px; font-size: 0.8em; }
+        .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
+        .legend-dot { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; }
+        /* leaflet-side-by-side styles */
+        .leaflet-sbs-range { cursor: ew-resize; background: transparent; position: absolute; top: 50%; width: 100%; z-index: 999; -webkit-appearance: none; display: block; margin: 0; height: 100%; padding: 0; outline: none; left: 0; }
+        .leaflet-sbs-divider { background: white; bottom: 0; cursor: ew-resize; left: 50%; margin-left: -2px; position: absolute; top: 0; width: 4px; z-index: 999; box-shadow: 0 0 8px rgba(0,0,0,.4); }
+        .leaflet-sbs-range::-webkit-slider-thumb { -webkit-appearance: none; background: white; border-radius: 50%; cursor: ew-resize; height: 44px; width: 44px; border: 2px solid #888; box-shadow: 0 1px 5px rgba(0,0,0,.4); }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>Explorateur NDVI</h2>
+    <h2>🌿 Explorateur NDVI</h2>
+
     <div class="card">
-        <label>Gouvernorat :</label>
-        <select id="regSelect">
-            <option value="[10.83, 36.72, 10.95, 36.85]">Nabeul</option>
-            <option value="[10.10, 36.80, 10.25, 36.95]">Ariana</option>
-            <option value="[9.10, 36.60, 9.35, 36.85]">Béja</option>
-            <option value="[10.50, 35.75, 10.70, 35.95]">Sousse</option>
+        <label><strong>1. Choisir un Gouvernorat</strong></label>
+        <select id="regionSelect">
+            <option value="[10.83,36.72,10.90,36.80]">Nabeul (Cap Bon)</option>
+            <option value="[10.12,36.82,10.22,36.95]">Ariana</option>
+            <option value="[9.15,36.65,9.30,36.80]">Béja</option>
+            <option value="[10.55,35.78,10.68,35.88]">Sousse</option>
+            <option value="[10.60,34.70,10.80,34.85]">Sfax</option>
+            <option value="[8.75,36.45,8.95,36.55]">Jendouba</option>
         </select>
     </div>
+
     <div class="card">
-        <label>Dates :</label>
-        <input type="date" id="d1" value="2025-01-01">
-        <input type="date" id="d2" value="2026-03-16">
-        <button id="searchBtn">Chercher les images</button>
+        <label><strong>2. Période d'Analyse</strong></label>
+        <input type="date" id="dateDebut" value="2025-01-01">
+        <input type="date" id="dateFin"   value="2026-03-16">
+        <button id="searchBtn" style="margin-top:12px;">🔍 Rechercher des Images</button>
         <div id="status"></div>
     </div>
-    <div id="res" class="card" style="display:none">
-        <p>Sélectionnez 1 ou 2 images :</p>
-        <div id="list"></div>
-        <button id="go" style="margin-top:10px; background:#1565c0;">Lancer l'Analyse</button>
-        <button id="dl" style="margin-top:5px; background:#555; display:none;">Télécharger le résultat</button>
+
+    <div id="resultsCard" class="card" style="display:none">
+        <label><strong>3. Sélection (1 ou 2 images)</strong></label>
+        <div id="imageList"></div>
+        <button id="compareBtn"  style="background:#1565c0; display:none; margin-top:12px;">📊 Lancer la comparaison</button>
+        <button id="downloadBtn" style="background:#455a64; display:none; margin-top:6px;">⬇️ Télécharger le NDVI (.png)</button>
+        <div class="legend" id="legend" style="display:none">
+            <strong>Légende NDVI :</strong>
+            <div class="legend-row"><div class="legend-dot" style="background:#e61a1a"></div> Sol nu / faible végétation (&lt; 0.1)</div>
+            <div class="legend-row"><div class="legend-dot" style="background:#e6e61a"></div> Végétation modérée (0.1 – 0.35)</div>
+            <div class="legend-row"><div class="legend-dot" style="background:#1a801a"></div> Végétation dense (&gt; 0.35)</div>
+        </div>
     </div>
 </div>
+
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
+<script>
+/* ── leaflet-side-by-side v2 — embarqué inline (pas de CDN externe) ── */
+!function(t){"function"==typeof define&&define.amd?define(["leaflet"],t):"object"==typeof module&&module.exports?module.exports=t(require("leaflet")):t(L)}(function(L){var S=L.Control.extend({options:{thumbSize:42,padding:0},initialize:function(l,r,o){this._leftLayer=l;this._rightLayer=r;L.setOptions(this,o)},onAdd:function(map){this._map=map;var c=this._container=L.DomUtil.create("div","leaflet-sbs");this._divider=L.DomUtil.create("div","leaflet-sbs-divider",c);var range=this._range=L.DomUtil.create("input","leaflet-sbs-range",c);range.type="range";range.min=0;range.max=100;range.step="any";range.value=50;L.DomEvent.on(range,"input change",this._updateClip,this);map.on("move zoom resize",this._updateClip,this);return c},onRemove:function(map){map.off("move zoom resize",this._updateClip,this);L.DomEvent.off(this._range,"input change",this._updateClip,this);[this._leftLayer,this._rightLayer].forEach(function(l){if(l&&l.getContainer())l.getContainer().style.clip=""})},_updateClip:function(){var map=this._map,nw=map.getBounds().getNorthWest(),se=map.getBounds().getSouthEast(),tl=map.latLngToContainerPoint(nw),br=map.latLngToContainerPoint(se),x=parseInt(this._range.value)/100*map.getSize().x;this._divider.style.left=x+"px";if(this._leftLayer&&this._leftLayer.getContainer())this._leftLayer.getContainer().style.clip="rect("+tl.y+"px,"+x+"px,"+br.y+"px,"+tl.x+"px)";if(this._rightLayer&&this._rightLayer.getContainer())this._rightLayer.getContainer().style.clip="rect("+tl.y+"px,"+br.x+"px,"+br.y+"px,"+x+"px)";return this}});L.control.sideBySide=function(l,r,o){return new S(l,r,o)};return S});
+</script>
 
 <script>
+    const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
+    const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh"; 
 
+    // ── Carte ──────────────────────────────────────────────────────────────
+    const map = L.map('map').setView([36.8, 10.2], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
 
-      const CID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
-    const CSEC = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh"; 
+    let layerL = null, layerR = null, slider = null;
+    let selected = [], currentBbox, currentBounds;
+    let cachedToken = null, tokenExpiry = 0;
 
-    const map = L.map('map').setView([36.8, 10.5], 8);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    let l1, l2, ctrl, bbox, selected = [];
-
-    // Met à jour la vue quand on change de région
-    document.getElementById('regSelect').onchange = function() {
-        bbox = JSON.parse(this.value);
-        let bounds = L.latLngBounds([bbox[1], bbox[0]], [bbox[3], bbox[2]]);
-        map.fitBounds(bounds);
-        if(window.rect) map.removeLayer(window.rect);
-        window.rect = L.rectangle(bounds, {color: "green", weight: 1, fillOpacity: 0.05}).addTo(map);
-    };
-    document.getElementById('regSelect').onchange();
-
-    async function getToken() {
-        const p = new URLSearchParams({'grant_type':'client_credentials','client_id':CID,'client_secret':CSEC});
-        const r = await fetch('https://services.sentinel-hub.com/oauth/token',{method:'POST',body:p});
-        return r.ok ? (await r.json()).access_token : null;
+    // ── Helpers UI ─────────────────────────────────────────────────────────
+    function setStatus(msg, type) {
+        const el = document.getElementById('status');
+        el.className = type;
+        el.innerHTML = msg;
     }
 
-    document.getElementById('searchBtn').onclick = async function() {
-        const t = await getToken();
-        if(!t) return document.getElementById('status').innerText = "Erreur Auth 401";
-        
-        document.getElementById('status').innerText = "Recherche...";
-        const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
+    // ── Token (avec cache) ─────────────────────────────────────────────────
+    async function getToken() {
+        if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+        const r = await fetch('https://services.sentinel-hub.com/oauth/token', {
             method: 'POST',
-            headers: {'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                "bbox": bbox,
-                "datetime": `${document.getElementById('d1').value}T00:00:00Z/${document.getElementById('d2').value}T23:59:59Z`,
-                "collections": ["sentinel-2-l2a"],
-                "limit": 10
-                // Suppression du filtre "query" qui causait l'erreur 400
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                grant_type: 'client_credentials',
+                client_id: CLIENT_ID,
+                client_secret: CLIENT_SECRET
             })
         });
+        if (!r.ok) throw new Error("Authentification échouée (" + r.status + ")");
+        const d = await r.json();
+        cachedToken = d.access_token;
+        tokenExpiry = Date.now() + (d.expires_in - 60) * 1000;
+        return cachedToken;
+    }
 
-        const data = await res.json();
-        const listDiv = document.getElementById('list');
-        listDiv.innerHTML = ""; selected = [];
-        document.getElementById('res').style.display = "block";
+    // ── Sélection région ───────────────────────────────────────────────────
+    function updateRegion() {
+        currentBbox   = JSON.parse(document.getElementById('regionSelect').value);
+        currentBounds = L.latLngBounds([currentBbox[1], currentBbox[0]], [currentBbox[3], currentBbox[2]]);
+        map.fitBounds(currentBounds);
+        if (window.areaRect) map.removeLayer(window.areaRect);
+        window.areaRect = L.rectangle(currentBounds, { color: "#2e7d32", weight: 2, fillOpacity: 0.08 }).addTo(map);
+    }
+    document.getElementById('regionSelect').onchange = updateRegion;
+    updateRegion();
 
-        if(data.features) {
-            data.features.forEach(f => {
-                let d = f.properties.datetime.split('T')[0];
-                let item = document.createElement('div');
-                item.className = 'img-item';
-                item.innerHTML = `📅 ${d} (Nuages: ${Math.round(f.properties["eo:cloud_cover"])}%)`;
-                item.onclick = () => {
-                    if(selected.includes(d)) { selected = selected.filter(s => s !== d); item.classList.remove('active'); }
-                    else if(selected.length < 2) { selected.push(d); item.classList.add('active'); }
-                };
-                listDiv.appendChild(item);
+    // ── Recherche d'images ─────────────────────────────────────────────────
+    document.getElementById('searchBtn').onclick = async function () {
+        this.disabled = true;
+        setStatus("Connexion...", "info");
+        selected = [];
+
+        try {
+            const token = await getToken();
+            setStatus("Recherche en cours...", "info");
+
+            // ✅ CQL2-JSON obligatoire pour POST sur Sentinel Hub Catalog
+            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bbox:        currentBbox,
+                    datetime:    `${document.getElementById('dateDebut').value}T00:00:00Z/${document.getElementById('dateFin').value}T23:59:59Z`,
+                    collections: ["sentinel-2-l2a"],
+                    limit:       10,
+                    filter: {
+                        op:   "lt",
+                        args: [{ property: "eo:cloud_cover" }, 25]
+                    },
+                    "filter-lang": "cql2-json"
+                })
             });
-            document.getElementById('status').innerText = "";
-        }
-    };
 
-    document.getElementById('go').onclick = async function() {
-        if(l1) map.removeLayer(l1); if(l2) map.removeLayer(l2); if(ctrl) map.removeControl(ctrl);
-        const t = await getToken();
-        
-        l1 = await getNDVI(selected[0], t);
-        l1.addTo(map);
-
-        if(selected[1]) {
-            l2 = await getNDVI(selected[1], t);
-            l2.addTo(map);
-            // On vérifie que la fonction existe avant de l'appeler
-            if(L.control.sideBySide) {
-                ctrl = L.control.sideBySide(l1, l2).addTo(map);
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(`Catalog ${res.status}: ${err.description || JSON.stringify(err)}`);
             }
+
+            const data = await res.json();
+            const list = document.getElementById('imageList');
+            list.innerHTML = "";
+            document.getElementById('compareBtn').style.display  = "none";
+            document.getElementById('downloadBtn').style.display = "none";
+            document.getElementById('legend').style.display      = "none";
+
+            if (!data.features || data.features.length === 0) {
+                setStatus("⚠️ Aucune image trouvée pour cette période.", "error");
+                document.getElementById('resultsCard').style.display = "none";
+                this.disabled = false;
+                return;
+            }
+
+            document.getElementById('resultsCard').style.display = "block";
+
+            data.features.forEach(f => {
+                const date   = f.properties.datetime.split('T')[0];
+                const clouds = Math.round(f.properties["eo:cloud_cover"] ?? 0);
+                const div    = document.createElement('div');
+                div.className = 'img-item';
+                div.innerHTML = `<span>📅 ${date}</span><span>☁️ ${clouds}%</span>`;
+                div.onclick = () => {
+                    const idx = selected.findIndex(s => s.date === date);
+                    if (idx > -1) { selected.splice(idx, 1); div.classList.remove('active'); }
+                    else if (selected.length < 2) { selected.push({ date }); div.classList.add('active'); }
+                    document.getElementById('compareBtn').style.display = selected.length > 0 ? "block" : "none";
+                };
+                list.appendChild(div);
+            });
+
+            setStatus(`✅ ${data.features.length} images disponibles.`, "success");
+
+        } catch (e) {
+            console.error(e);
+            setStatus("❌ " + e.message, "error");
         }
-        document.getElementById('dl').style.display = "block";
+        this.disabled = false;
     };
 
-    async function getNDVI(date, t) {
-        const script = `//VERSION=3
-        function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
-        function evaluate(s) {
-            let n = (s.B08 - s.B04) / (s.B08 + s.B04);
-            if (s.dataMask == 0) return [0,0,0,0];
-            return n > 0.4 ? [0, 0.5, 0, 1] : n > 0.2 ? [0.9, 0.9, 0, 1] : [0.8, 0, 0, 1];
-        }`;
+    // ── Lancer comparaison NDVI ────────────────────────────────────────────
+    document.getElementById('compareBtn').onclick = async function () {
+        this.disabled = true;
+        setStatus("Génération du NDVI...", "info");
+
+        if (layerL) { map.removeLayer(layerL); layerL = null; }
+        if (layerR) { map.removeLayer(layerR); layerR = null; }
+        if (slider)  { map.removeControl(slider); slider = null; }
+
+        try {
+            const token = await getToken();
+            layerL = await getNDVILayer(selected[0].date, token);
+            layerL.addTo(map);
+
+            if (selected[1]) {
+                layerR = await getNDVILayer(selected[1].date, token);
+                layerR.addTo(map);
+                slider = L.control.sideBySide(layerL, layerR).addTo(map);
+                setStatus(`✅ Comparaison ${selected[0].date} ↔ ${selected[1].date}`, "success");
+            } else {
+                setStatus(`✅ NDVI affiché pour le ${selected[0].date}`, "success");
+            }
+
+            document.getElementById('downloadBtn').style.display = "block";
+            document.getElementById('legend').style.display      = "block";
+            map.fitBounds(currentBounds);
+
+        } catch (e) {
+            console.error(e);
+            setStatus("❌ " + e.message, "error");
+        }
+        this.disabled = false;
+    };
+
+    // ── Génération couche NDVI ─────────────────────────────────────────────
+    async function getNDVILayer(date, token) {
+        const evalscript = `//VERSION=3
+function setup() { return { input: ["B04","B08","dataMask"], output: { bands: 4 } }; }
+function evaluatePixel(s) {
+    if (s.dataMask === 0) return [0,0,0,0];
+    let v = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
+    if (v < 0.1)  return [0.9, 0.1, 0.1, 1];
+    if (v < 0.35) return [0.9, 0.9, 0.2, 1];
+    return [0.1, 0.5, 0.1, 1];
+}`;
 
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
-            headers: {'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json'},
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                input: { bounds: { bbox: bbox }, data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: date+"T00:00:00Z", to: date+"T23:59:59Z" } } }] },
-                output: { responses: [{ format: { type: "image/png" } }] },
-                evalscript: script
+                input: {
+                    bounds: {
+                        bbox: currentBbox,
+                        properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
+                    },
+                    data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: `${date}T00:00:00Z`, to: `${date}T23:59:59Z` } } }]
+                },
+                output: { width: 512, height: 512, responses: [{ format: { type: "image/png" } }] },
+                evalscript
             })
         });
+
+        if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            throw new Error(`Process API ${r.status}: ${err.error?.message || JSON.stringify(err)}`);
+        }
+
         const url = URL.createObjectURL(await r.blob());
-        const layer = L.imageOverlay(url, L.latLngBounds([bbox[1], bbox[0]], [bbox[3], bbox[2]]));
-        layer.options.url = url;
+        const layer = L.imageOverlay(url, currentBounds, { opacity: 0.85 });
+        layer.options.downloadUrl = url;
         return layer;
     }
 
-    document.getElementById('dl').onclick = () => {
+    // ── Téléchargement ─────────────────────────────────────────────────────
+    document.getElementById('downloadBtn').onclick = function () {
+        if (!layerL) return;
         const a = document.createElement('a');
-        a.href = l1.options.url;
-        a.download = "NDVI_Tunisie.png";
+        a.href = layerL.options.downloadUrl;
+        a.download = `NDVI_Tunisie_${selected[0].date}.png`;
         a.click();
     };
 </script>
