@@ -1085,52 +1085,9 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        COMPARAISON CÔTE-À-CÔTE
     ═══════════════════════════════════════════════════════ */
-    // compareBtn désactivé
-    if(false) {
-        if (!compareL || !compareR) return;
-        this.disabled = true;
-        setStatus('<span class="spin"></span>Chargement des deux images...','s-info');
-        clearAllLayers();
+;
 
-        try {
-            const token  = await getToken();
-            const script = EVALSCRIPTS[document.getElementById('modeSelect').value];
-            cLayerL = await buildLayer(compareL, token, script);
-            cLayerR = await buildLayer(compareR, token, script);
-            cLayerL.addTo(map);
-            cLayerR.addTo(map);
-            slider = L.control.sideBySide(cLayerL, cLayerR).addTo(map);
-            map.fitBounds(currentBounds);
-
-            const info = document.getElementById('compareInfo');
-            info.style.display = 'block';
-            info.innerHTML = `<span style="color:#1e6fa8;font-weight:700;">◀ ${compareL}</span>
-                              &nbsp;↔&nbsp;
-                              <span style="color:#9c27b0;font-weight:700;">${compareR} ▶</span>`;
-
-            setStatus('✅ Glissez le curseur pour comparer','s-ok');
-            updateModeLabel(true);
-
-            // Infobulle sur l'image L pour la comparaison
-            loadNdviValueLayer(compareL, token);
-
-        } catch(e) {
-            console.error(e);
-            setStatus('❌ '+e.message,'s-err');
-        }
-        this.disabled = false;
-    });
-
-    // clearCompBtn désactivé
-    if(false) {
-        clearAllLayers();
-        compareL = null; compareR = null;
-        refreshSelectionUI();
-        document.getElementById('compareInfo').style.display = 'none';
-        document.getElementById('modeLabel').style.display   = 'none';
-        setStatus('Comparaison effacée.','s-info');
-        disableTooltip();
-    });
+;
 
     function clearAllLayers() {
         Object.values(activeLayers).forEach(l => map.removeLayer(l));
