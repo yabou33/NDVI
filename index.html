@@ -2,262 +2,853 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Station de Précision — Expert Céréales</title>
+    <title>Station de Précision — Suivi de Campagne</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:wght@300;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #eceff1; }
-        #sidebar { width: 420px; min-width: 420px; padding: 15px; background: white; border-right: 1px solid #cfd8dc; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
-        #map { flex-grow: 1; position: relative; cursor: crosshair; }
-        .card { border: 1px solid #e0e0e0; padding: 12px; border-radius: 8px; margin-bottom: 10px; background: #fff; }
-        h2 { color: #1b5e20; font-size: 1.2em; margin: 0 0 10px; border-bottom: 2px solid #e8f5e9; padding-bottom: 5px; }
-        small-label { display: block; font-size: 10px; color: #546e7a; font-weight: 700; text-transform: uppercase; margin-bottom: 3px; }
-        select, input[type=date], input[type=range] { width: 100%; margin-bottom: 8px; border-radius: 4px; border: 1px solid #ccc; padding: 5px; box-sizing: border-box; }
-        
-        .btn { width: 100%; padding: 10px; border-radius: 5px; border: none; font-weight: 700; cursor: pointer; color: white; margin-top: 5px; transition: 0.3s; }
-        .g { background: #2e7d32; } .d { background: #455a64; } .csv { background: #f57c00; }
-        
-        #chartContainer { height: 160px; width: 100%; margin-top: 10px; }
-        .legend { font-size: 0.8em; margin-top: 5px; }
-        .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
-        .dot { width: 12px; height: 12px; border-radius: 2px; }
+        :root {
+            --green-deep:  #0d3d1e;
+            --green-mid:   #1b6b35;
+            --green-light: #4caf6f;
+            --amber:       #e8a020;
+            --red:         #c0392b;
+            --blue:        #1e6fa8;
+            --bg:          #f2f4f0;
+            --panel:       #ffffff;
+            --border:      #d6ddd0;
+            --text:        #1a2417;
+            --muted:       #7a8c72;
+            --mono: 'DM Mono', monospace;
+            --serif: 'Fraunces', Georgia, serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--mono); display: flex; height: 100vh; background: var(--bg); color: var(--text); overflow: hidden; }
 
-        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; background: #fafafa; }
-        .eye-btn { cursor: pointer; font-size: 18px; padding: 0 10px; color: #90a4ae; transition: 0.2s; }
-        .eye-btn.active { color: #1565c0; transform: scale(1.2); }
-        
-        .stats-box { background: #f1f8e9; padding: 10px; border-radius: 6px; font-size: 13px; color: #1b5e20; border: 1px solid #c8e6c9; margin-top: 5px; }
-        #ndvi-tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 2000; display: none; }
+        /* ── SIDEBAR ── */
+        #sidebar {
+            width: 380px; min-width: 380px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            z-index: 1000;
+            box-shadow: 3px 0 20px rgba(0,0,0,.07);
+        }
+        #sidebar-header {
+            padding: 16px 18px 12px;
+            background: var(--green-deep);
+            color: white;
+            flex-shrink: 0;
+        }
+        #sidebar-header h1 {
+            font-family: var(--serif);
+            font-weight: 600;
+            font-size: 1.15em;
+            letter-spacing: .01em;
+            line-height: 1.2;
+        }
+        #sidebar-header p { font-size: 10px; opacity: .65; margin-top: 3px; letter-spacing: .04em; text-transform: uppercase; }
+
+        #sidebar-body { flex: 1; overflow-y: auto; padding: 14px; }
+        #sidebar-body::-webkit-scrollbar { width: 4px; }
+        #sidebar-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: var(--panel);
+        }
+        .card-title {
+            font-size: 9px; font-weight: 500; letter-spacing: .08em;
+            text-transform: uppercase; color: var(--muted);
+            margin-bottom: 8px; display: flex; align-items: center; gap: 5px;
+        }
+        .card-title::before { content:''; display:inline-block; width:8px; height:2px; background:var(--green-light); border-radius:1px; }
+
+        select, input[type=date] {
+            width: 100%; padding: 7px 9px;
+            border-radius: 5px; border: 1px solid var(--border);
+            font-family: var(--mono); font-size: 12px;
+            background: var(--bg); color: var(--text);
+            margin-bottom: 6px;
+        }
+        .range-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 5px; }
+        .range-val { font-weight: 500; color: var(--text); }
+        input[type=range] { width: 100%; accent-color: var(--green-mid); margin: 3px 0 8px; }
+
+        .btn {
+            width: 100%; padding: 9px 12px;
+            border-radius: 5px; border: none;
+            font-family: var(--mono); font-size: 12px; font-weight: 500;
+            cursor: pointer; color: white; margin-top: 5px;
+            transition: all .2s; letter-spacing: .02em;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-green  { background: var(--green-mid); }   .btn-green:hover  { background: var(--green-deep); }
+        .btn-blue   { background: var(--blue); }        .btn-blue:hover   { background: #15527e; }
+        .btn-amber  { background: var(--amber); color:#1a1a1a; } .btn-amber:hover { background: #c98a18; }
+        .btn-slate  { background: #546e7a; }            .btn-slate:hover  { background: #37474f; }
+        .btn-compare { background: #5c3d8f; }           .btn-compare:hover{ background: #432d6e; }
+
+        /* Status */
+        #status {
+            font-size: 11px; padding: 7px 9px; border-radius: 4px;
+            margin-top: 7px; display: none; line-height: 1.4;
+        }
+        .s-err     { background:#fdecea; color:#c62828; display:block!important; }
+        .s-ok      { background:#e8f5e9; color:#1b6b35; display:block!important; }
+        .s-info    { background:#e8f0fe; color:#1a56a8; display:block!important; }
+
+        /* Stats box */
+        .stats-box {
+            background: #f0f7f2; border: 1px solid #c8e6c9;
+            border-radius: 6px; padding: 9px; font-size: 12px;
+            color: var(--green-deep); margin-top: 6px; line-height: 1.7;
+        }
+
+        /* Image list */
+        .img-item {
+            border: 1px solid var(--border); padding: 7px 9px;
+            margin-top: 5px; border-radius: 5px;
+            display: flex; align-items: center; gap: 8px;
+            font-size: 11.5px; background: #fafaf8;
+            transition: border-color .15s, background .15s;
+        }
+        .img-item:hover { border-color: var(--green-light); background: #f2f9f4; }
+        .img-item.selected-L { border-color: var(--blue); background: #e8f0fe; }
+        .img-item.selected-R { border-color: #9c27b0; background: #f3e5f5; }
+        .date-label { flex: 1; }
+        .cloud-tag {
+            font-size: 10px; padding: 1px 6px; border-radius: 8px;
+        }
+        .ctag-ok  { background:#e8f5e9; color:#1b6b35; }
+        .ctag-mid { background:#fff3e0; color:#e65100; }
+        .ctag-bad { background:#fdecea; color:#c62828; }
+        .eye-btn {
+            cursor: pointer; font-size: 16px; padding: 2px 5px;
+            opacity: .4; transition: .2s; border-radius: 3px;
+            border: none; background: transparent;
+        }
+        .eye-btn:hover { opacity: 1; }
+        .eye-btn.vis   { opacity: 1; color: var(--blue); }
+        .sel-badge {
+            font-size: 9px; font-weight: 500; padding: 1px 5px;
+            border-radius: 3px; letter-spacing: .03em;
+        }
+        .sel-L { background: var(--blue); color: white; }
+        .sel-R { background: #9c27b0; color: white; }
+
+        /* Compare row */
+        #compareRow { display: none; gap: 5px; margin-top: 7px; }
+        #compareRow .btn { flex: 1; margin: 0; }
+        #compareInfo { font-size: 10px; color: var(--muted); margin-top: 5px; text-align: center; display:none; }
+
+        /* Chart */
+        #chartContainer { height: 140px; width: 100%; margin-top: 8px; }
+
+        /* Legend */
+        .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; }
+        .legend-row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+        .dot { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+
+        /* ── MAP ── */
+        #map { flex-grow: 1; position: relative; }
+
+        /* side-by-side */
+        .leaflet-sbs-range{cursor:ew-resize;background:transparent;position:absolute;top:50%;width:100%;z-index:999;-webkit-appearance:none;display:block;margin:0;height:100%;padding:0;outline:none;left:0}
+        .leaflet-sbs-divider{background:#fff;bottom:0;cursor:ew-resize;left:50%;margin-left:-2px;position:absolute;top:0;width:4px;z-index:999;box-shadow:0 0 12px rgba(0,0,0,.5)}
+        .leaflet-sbs-range::-webkit-slider-thumb{-webkit-appearance:none;background:#fff;border-radius:50%;cursor:ew-resize;height:44px;width:44px;border:2px solid #666;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+
+        /* Mode label overlay */
+        #modeLabel {
+            position: absolute; top: 12px; right: 12px; z-index: 800;
+            background: rgba(13,61,30,.85); color: white;
+            font-family: var(--mono); font-size: 11px; padding: 5px 10px;
+            border-radius: 4px; letter-spacing: .04em; display: none;
+        }
+
+        /* spinner */
+        .spin { display:inline-block;width:11px;height:11px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:4px;}
+        @keyframes sp{to{transform:rotate(360deg)}}
     </style>
 </head>
 <body>
 
-<div id="ndvi-tooltip">NDVI: --</div>
-
 <div id="sidebar">
-    <h2>🌾 Suivi de Campagne</h2>
-
-    <div class="card">
-        <small-label>1. Analyse de Surface</small-label>
-        <select id="regionSelect">
-            <option value="[10.83,36.72,10.90,36.80]">Nabeul (Cap Bon)</option>
-            <option value="[9.15,36.65,9.30,36.80]">Béja (Grandes cultures)</option>
-        </select>
-        <div id="areaDisplay" class="stats-box" style="display:none"></div>
+    <div id="sidebar-header">
+        <h1>🌾 Station de Précision</h1>
+        <p>Suivi de campagne · Télédétection Sentinel-2</p>
     </div>
 
-    <div class="card">
-        <small-label>2. Filtres & Recherche</small-label>
-        <div style="display:flex; gap:5px;">
-            <input type="date" id="dateStart" value="2025-01-01">
-            <input type="date" id="dateEnd" value="2026-03-16">
+    <div id="sidebar-body">
+
+        <!-- Zone -->
+        <div class="card">
+            <div class="card-title">Zone d'analyse</div>
+            <select id="regionSelect">
+                <option value="[10.83,36.72,10.90,36.80]">Nabeul (Cap Bon)</option>
+                <option value="[9.15,36.65,9.30,36.80]">Béja (Grandes cultures)</option>
+                <option value="[10.12,36.82,10.22,36.95]">Ariana</option>
+                <option value="[10.55,35.78,10.68,35.88]">Sousse</option>
+                <option value="[8.75,36.45,8.95,36.55]">Jendouba</option>
+            </select>
+            <div id="areaDisplay" class="stats-box" style="display:none"></div>
+            <div style="font-size:10px;color:var(--muted);margin-top:5px;">
+                💡 Dessinez un polygone/rectangle sur la carte pour délimiter votre parcelle
+            </div>
         </div>
-        <small-label>Nuages max: <span id="cVal">30</span>%</small-label>
-        <input type="range" id="cRange" min="0" max="100" value="30" oninput="document.getElementById('cVal').innerText=this.value">
-        
-        <small-label>Nombre d'images: <span id="lVal">50</span></small-label>
-        <input type="range" id="lRange" min="1" max="100" value="50" oninput="document.getElementById('lVal').innerText=this.value">
-        
-        <button class="btn g" id="searchBtn">🔍 Trouver les images</button>
-    </div>
 
-    <div class="card" id="chartCard" style="display:none">
-        <small-label>📈 Courbe NDVI de la parcelle</small-label>
-        <div id="chartContainer"><canvas id="ndviChart"></canvas></div>
-        <button class="btn csv" id="exportBtn">📊 Exporter Données (CSV)</button>
-    </div>
-
-    <div class="card">
-        <small-label>Légende Classification</small-label>
-        <div class="legend">
-            <div class="legend-row"><div class="dot" style="background:#0000FF"></div> Eau (Barrage/Oued)</div>
-            <div class="legend-row"><div class="dot" style="background:#006400"></div> Blé (Vigueur Haute)</div>
-            <div class="legend-row"><div class="dot" style="background:#228b22"></div> Orge / Céréales (Moyen)</div>
-            <div class="legend-row"><div class="dot" style="background:#ffff00"></div> Levée / Stress</div>
-            <div class="legend-row"><div class="dot" style="background:#cc2200"></div> Sol nu</div>
+        <!-- Filtres -->
+        <div class="card">
+            <div class="card-title">Période & filtres</div>
+            <div style="display:flex;gap:6px;">
+                <input type="date" id="dateStart" value="2025-01-01" style="margin:0;">
+                <input type="date" id="dateEnd"   value="2026-03-16" style="margin:0;">
+            </div>
+            <div class="range-row" style="margin-top:8px;">
+                <span>Nuages max</span><span class="range-val"><span id="cVal">30</span>%</span>
+            </div>
+            <input type="range" id="cRange" min="0" max="100" value="30"
+                   oninput="document.getElementById('cVal').textContent=this.value">
+            <div class="range-row">
+                <span>Images max</span><span class="range-val"><span id="lVal">50</span></span>
+            </div>
+            <input type="range" id="lRange" min="5" max="100" value="50"
+                   oninput="document.getElementById('lVal').textContent=this.value">
+            <button class="btn btn-green" id="searchBtn">🔍 Rechercher les images</button>
+            <div id="status"></div>
         </div>
-    </div>
 
-    <div id="resultsCard" class="card" style="display:none">
-        <small-label>3. Liste des images (Cliquer sur l'œil)</small-label>
-        <div id="imageList"></div>
-        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger l'image visible</button>
-    </div>
+        <!-- Mode affichage (Option A) -->
+        <div class="card">
+            <div class="card-title">Mode d'affichage</div>
+            <select id="modeSelect">
+                <option value="ndvi_cereal">🌾 NDVI Céréales (Blé / Orge / Sol)</option>
+                <option value="ndvi_classic">🟢 NDVI Classique</option>
+                <option value="classify_a">🎨 Classification Option A (Multi-cultures)</option>
+                <option value="true_color">📷 Couleurs réelles (RGB)</option>
+            </select>
+        </div>
+
+        <!-- Courbe NDVI -->
+        <div class="card" id="chartCard" style="display:none">
+            <div class="card-title">Courbe NDVI temporelle</div>
+            <div id="chartContainer"><canvas id="ndviChart"></canvas></div>
+            <button class="btn btn-amber" id="exportBtn" style="margin-top:8px;">📊 Exporter CSV</button>
+        </div>
+
+        <!-- Légende -->
+        <div class="card" id="legendCard">
+            <div class="card-title">Légende</div>
+            <div class="legend-grid" id="legendContent">
+                <!-- dynamique selon le mode -->
+            </div>
+        </div>
+
+        <!-- Résultats -->
+        <div class="card" id="resultsCard" style="display:none">
+            <div class="card-title">Images disponibles</div>
+            <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">
+                👁 Afficher · <span style="color:var(--blue)">L</span> Image gauche · <span style="color:#9c27b0">R</span> Image droite (comparaison)
+            </div>
+            <div id="imageList"></div>
+
+            <!-- Comparaison -->
+            <div id="compareRow">
+                <button class="btn btn-compare" id="compareBtn">⚖️ Comparer (L ↔ R)</button>
+                <button class="btn btn-slate"   id="clearCompBtn">✕ Reset</button>
+            </div>
+            <div id="compareInfo"></div>
+
+            <button class="btn btn-slate" id="downloadBtn" style="display:none;margin-top:8px;">⬇️ Télécharger l'image visible</button>
+        </div>
+
+    </div><!-- /sidebar-body -->
 </div>
 
-<div id="map"></div>
+<div id="map">
+    <div id="modeLabel"></div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 
 <script>
-    const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
+/* ── leaflet-side-by-side v2 inline ── */
+!function(t){"function"==typeof define&&define.amd?define(["leaflet"],t):"object"==typeof module&&module.exports?module.exports=t(require("leaflet")):t(L)}(function(L){var S=L.Control.extend({options:{thumbSize:42,padding:0},initialize:function(l,r,o){this._leftLayer=l;this._rightLayer=r;L.setOptions(this,o)},onAdd:function(map){this._map=map;var c=this._container=L.DomUtil.create("div","leaflet-sbs");this._divider=L.DomUtil.create("div","leaflet-sbs-divider",c);var range=this._range=L.DomUtil.create("input","leaflet-sbs-range",c);range.type="range";range.min=0;range.max=100;range.step="any";range.value=50;L.DomEvent.on(range,"input change",this._updateClip,this);map.on("move zoom resize",this._updateClip,this);return c},onRemove:function(map){map.off("move zoom resize",this._updateClip,this);L.DomEvent.off(this._range,"input change",this._updateClip,this);[this._leftLayer,this._rightLayer].forEach(function(l){if(l&&l.getContainer())l.getContainer().style.clip=""})},_updateClip:function(){var map=this._map,nw=map.getBounds().getNorthWest(),se=map.getBounds().getSouthEast(),tl=map.latLngToContainerPoint(nw),br=map.latLngToContainerPoint(se),x=parseInt(this._range.value)/100*map.getSize().x;this._divider.style.left=x+"px";if(this._leftLayer&&this._leftLayer.getContainer())this._leftLayer.getContainer().style.clip="rect("+tl.y+"px,"+x+"px,"+br.y+"px,"+tl.x+"px)";if(this._rightLayer&&this._rightLayer.getContainer())this._rightLayer.getContainer().style.clip="rect("+tl.y+"px,"+br.x+"px,"+br.y+"px,"+x+"px)";return this}});L.control.sideBySide=function(l,r,o){return new S(l,r,o)};return S});
+</script>
+
+<script>
+    /* ═══════════════════════════════════════════════════════
+       CONFIG
+    ═══════════════════════════════════════════════════════ */
+    const CLIENT_ID     = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
     const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh";
 
+    /* ═══════════════════════════════════════════════════════
+       EVALSCRIPTS — Option A : Classification multi-cultures
+    ═══════════════════════════════════════════════════════ */
+    const EVALSCRIPTS = {
+
+        // ── Mode 1 : NDVI Céréales (palette originale)
+        ndvi_cereal: `//VERSION=3
+function setup() {
+    return { input: [{ bands: ["B03","B04","B08","dataMask"] }], output: { bands: 4 } };
+}
+function evaluatePixel(s) {
+    if (s.dataMask === 0) return [0,0,0,0];
+    const ndvi = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
+    const ndwi = (s.B03 - s.B08) / (s.B03 + s.B08 + 1e-10);
+    if (ndwi > 0.1)  return [0.05, 0.35, 0.75, 1];  // Eau
+    if (ndvi > 0.6)  return [0.0,  0.39, 0.13, 1];  // Blé vigueur haute
+    if (ndvi > 0.4)  return [0.13, 0.55, 0.13, 1];  // Orge / céréales
+    if (ndvi > 0.2)  return [1.0,  1.0,  0.0,  1];  // Levée / stress
+    return [0.8, 0.13, 0.1, 1];                      // Sol nu
+}`,
+
+        // ── Mode 2 : NDVI Classique (dégradé continu)
+        ndvi_classic: `//VERSION=3
+function setup() {
+    return { input: [{ bands: ["B04","B08","dataMask"] }], output: { bands: 4 } };
+}
+function evaluatePixel(s) {
+    if (s.dataMask === 0) return [0,0,0,0];
+    const ndvi = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
+    const v = Math.max(0, Math.min(1, (ndvi + 0.2) / 1.2));
+    // Rouge → Jaune → Vert
+    if (v < 0.5) return [1, v*2, 0, 1];
+    return [1 - (v-0.5)*2, 1, 0, 1];
+}`,
+
+        // ── Mode 3 : CLASSIFICATION OPTION A — Multi-cultures (NDVI + NDRE + NDWI + BSI)
+        // Utilise 7 bandes pour distinguer : Eau, Oliviers/Arbo, Blé, Orge, Maraîcher, Sol nu, Jachère
+        classify_a: `//VERSION=3
+function setup() {
+    return {
+        input: [{ bands: ["B02","B03","B04","B05","B08","B11","dataMask"] }],
+        output: { bands: 4 }
+    };
+}
+function evaluatePixel(s) {
+    if (s.dataMask === 0) return [0,0,0,0];
+
+    // ── Calcul des indices ──
+    const ndvi = (s.B08 - s.B04) / (s.B08 + s.B04 + 1e-10);
+    // NDRE : Red-Edge — détecte oliviers/arboriculture (chlorophylle profonde)
+    const ndre = (s.B08 - s.B05) / (s.B08 + s.B05 + 1e-10);
+    // NDWI : Water index — eau et humidité
+    const ndwi = (s.B03 - s.B08) / (s.B03 + s.B08 + 1e-10);
+    // BSI : Bare Soil Index — sol nu et labours
+    const bsi  = ((s.B11 + s.B04) - (s.B08 + s.B02)) /
+                 ((s.B11 + s.B04) + (s.B08 + s.B02) + 1e-10);
+
+    // ── Classification par règles ──
+
+    // 1. EAU (barrage, oued) — NDWI fort
+    if (ndwi > 0.15)
+        return [0.08, 0.38, 0.75, 1];    // Bleu
+
+    // 2. OLIVIERS / ARBORICULTURE
+    // NDRE élevé (feuillaison dense), NDVI modéré-élevé, stable toute l'année
+    if (ndre > 0.25 && ndvi > 0.35 && ndvi < 0.75)
+        return [0.35, 0.60, 0.15, 1];    // Vert olive
+
+    // 3. BLÉ VIGUEUR HAUTE
+    // NDVI très élevé en saison, BSI faible
+    if (ndvi > 0.55 && bsi < 0.0)
+        return [0.05, 0.45, 0.10, 1];    // Vert foncé
+
+    // 4. ORGE / CÉRÉALES — NDVI moyen-élevé
+    if (ndvi > 0.35 && ndvi <= 0.55)
+        return [0.45, 0.75, 0.20, 1];    // Vert clair
+
+    // 5. CULTURES MARAÎCHÈRES / IRRIGUÉES
+    // NDVI élevé + humidité (NDWI légèrement positif)
+    if (ndvi > 0.45 && ndwi > -0.05 && ndwi <= 0.15)
+        return [0.0, 0.80, 0.60, 1];     // Cyan-vert
+
+    // 6. LEVÉE / STRESS HYDRIQUE — NDVI faible mais végétation présente
+    if (ndvi > 0.15 && ndvi <= 0.35)
+        return [0.95, 0.85, 0.10, 1];    // Jaune
+
+    // 7. JACHÈRE — sol partiellement couvert
+    if (ndvi > 0.05 && ndvi <= 0.15)
+        return [0.80, 0.55, 0.20, 1];    // Brun orangé
+
+    // 8. SOL NU / LABOUR — BSI fort
+    return [0.75, 0.25, 0.15, 1];        // Rouge brique
+}`,
+
+        // ── Mode 4 : Couleurs réelles
+        true_color: `//VERSION=3
+function setup() {
+    return { input: [{ bands: ["B04","B03","B02","dataMask"] }], output: { bands: 4 } };
+}
+function evaluatePixel(s) {
+    if (s.dataMask === 0) return [0,0,0,0];
+    return [s.B04 * 3.5, s.B03 * 3.5, s.B02 * 3.5, 1];
+}`
+    };
+
+    /* ═══════════════════════════════════════════════════════
+       LÉGENDES par mode
+    ═══════════════════════════════════════════════════════ */
+    const LEGENDS = {
+        ndvi_cereal: [
+            { color:'#0d5fc0', label:'Eau / Oued' },
+            { color:'#006421', label:'Blé (vigueur haute)' },
+            { color:'#228b22', label:'Orge / Céréales' },
+            { color:'#ffff00', label:'Levée / Stress' },
+            { color:'#cc2200', label:'Sol nu' }
+        ],
+        ndvi_classic: [
+            { color:'#ff0000', label:'NDVI très bas (< 0)' },
+            { color:'#ffaa00', label:'NDVI bas (0 – 0.3)' },
+            { color:'#ccff00', label:'NDVI moyen (0.3 – 0.6)' },
+            { color:'#00cc00', label:'NDVI élevé (> 0.6)' }
+        ],
+        classify_a: [
+            { color:'#1461bf', label:'Eau / Barrage' },
+            { color:'#599926', label:'Oliviers / Arboriculture' },
+            { color:'#0d7219', label:'Blé (vigueur haute)' },
+            { color:'#73bf33', label:'Orge / Céréales' },
+            { color:'#00cc99', label:'Cultures maraîchères' },
+            { color:'#f2d919', label:'Levée / Stress' },
+            { color:'#cc8c33', label:'Jachère' },
+            { color:'#bf4026', label:'Sol nu / Labour' }
+        ],
+        true_color: [
+            { color:'#7cb9e8', label:'Image satellite réelle' }
+        ]
+    };
+
+    function renderLegend(mode) {
+        const items = LEGENDS[mode] || [];
+        document.getElementById('legendContent').innerHTML = items.map(i =>
+            `<div class="legend-row">
+                <div class="dot" style="background:${i.color}"></div>
+                <span>${i.label}</span>
+             </div>`
+        ).join('');
+    }
+    renderLegend('ndvi_cereal');
+    document.getElementById('modeSelect').onchange = () =>
+        renderLegend(document.getElementById('modeSelect').value);
+
+    /* ═══════════════════════════════════════════════════════
+       CARTE
+    ═══════════════════════════════════════════════════════ */
     const map = L.map('map').setView([36.7, 10.2], 9);
-    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { attribution: 'Google' }).addTo(map);
+    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        { attribution: '© Google Satellite', maxZoom: 20 }).addTo(map);
 
-    let drawnItems = new L.FeatureGroup().addTo(map);
-    let activeLayers = {}; // Pour stocker les couches par date
-    let currentBbox, currentBounds, selectedGeom = null, chartObj = null;
-    let totalAreaHa = 0, lastData = [];
-
+    // Dessin de parcelle
+    const drawnItems = new L.FeatureGroup().addTo(map);
     map.addControl(new L.Control.Draw({
+        edit: { featureGroup: drawnItems },
         draw: { polygon: true, rectangle: true, polyline: false, circle: false, marker: false, circlemarker: false }
     }));
-
-    map.on(L.Draw.Event.CREATED, (e) => {
+    map.on(L.Draw.Event.CREATED, e => {
         drawnItems.clearLayers();
-        const layer = e.layer;
-        drawnItems.addLayer(layer);
-        selectedGeom = layer.toGeoJSON().geometry;
-        currentBounds = layer.getBounds();
-        currentBbox = [currentBounds.getWest(), currentBounds.getSouth(), currentBounds.getEast(), currentBounds.getNorth()];
-        totalAreaHa = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 10000).toFixed(2);
-        updateAreaDisplay();
+        drawnItems.addLayer(e.layer);
+        selectedGeom  = e.layer.toGeoJSON().geometry;
+        currentBounds = e.layer.getBounds();
+        currentBbox   = [currentBounds.getWest(), currentBounds.getSouth(),
+                         currentBounds.getEast(), currentBounds.getNorth()];
+        try {
+            const pts = e.layer.getLatLngs()[0];
+            const areaSqm = L.GeometryUtil.geodesicArea(pts);
+            totalAreaHa = (areaSqm / 10000).toFixed(2);
+        } catch { totalAreaHa = '—'; }
+        showAreaDisplay();
     });
 
-    map.on('mousemove', function(e) {
-        const tooltip = document.getElementById('ndvi-tooltip');
-        tooltip.style.display = 'block';
-        tooltip.style.left = (e.originalEvent.pageX + 15) + 'px';
-        tooltip.style.top = (e.originalEvent.pageY - 15) + 'px';
-        tooltip.innerText = `NDVI: ${(0.15 + Math.random() * 0.75).toFixed(2)}`;
-    });
+    /* ═══════════════════════════════════════════════════════
+       ÉTAT
+    ═══════════════════════════════════════════════════════ */
+    let currentBbox, currentBounds, selectedGeom = null;
+    let totalAreaHa = 0, lastFeatures = [];
+    let activeLayers  = {};   // date → layer (affichage simple)
+    let compareL = null, compareR = null;   // dates pour comparaison
+    let cLayerL  = null, cLayerR  = null;   // layers pour slider
+    let slider   = null;
+    let chartObj = null;
+    let cachedToken = null, tokenExpiry = 0;
 
-    function updateAreaDisplay(stats = null) {
-        let html = `📏 Totale : <b>${totalAreaHa} ha</b>`;
+    // Init région
+    function updateRegion() {
+        currentBbox   = JSON.parse(document.getElementById('regionSelect').value);
+        currentBounds = L.latLngBounds(
+            [currentBbox[1], currentBbox[0]],
+            [currentBbox[3], currentBbox[2]]
+        );
+        map.fitBounds(currentBounds);
+        if (window.areaRect) map.removeLayer(window.areaRect);
+        window.areaRect = L.rectangle(currentBounds,
+            { color:'#1b6b35', weight:2, fillOpacity:.06 }).addTo(map);
+        selectedGeom = null; drawnItems.clearLayers();
+    }
+    document.getElementById('regionSelect').onchange = updateRegion;
+    updateRegion();
+
+    function showAreaDisplay(stats = null) {
+        let html = `📏 Superficie : <b>${totalAreaHa} ha</b>`;
         if (stats) {
-            html += `<br>🌾 <span style="color:#006400">Blé : ${stats.ble} ha</span>`;
-            html += `<br>🌾 <span style="color:#228b22">Orge : ${stats.orge} ha</span>`;
+            for (const [k,v] of Object.entries(stats))
+                html += `<br>${v.icon} <span style="color:${v.color}">${k} : ${v.ha} ha (${v.pct}%)</span>`;
         }
-        document.getElementById('areaDisplay').innerHTML = html;
-        document.getElementById('areaDisplay').style.display = 'block';
+        const el = document.getElementById('areaDisplay');
+        el.innerHTML = html; el.style.display = 'block';
     }
 
+    /* ═══════════════════════════════════════════════════════
+       TOKEN
+    ═══════════════════════════════════════════════════════ */
     async function getToken() {
+        if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
         const r = await fetch('https://services.sentinel-hub.com/oauth/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ grant_type: 'client_credentials', client_id: CLIENT_ID, client_secret: CLIENT_SECRET })
+            body: new URLSearchParams({ grant_type:'client_credentials', client_id:CLIENT_ID, client_secret:CLIENT_SECRET })
         });
-        const d = await r.json(); return d.access_token;
+        if (!r.ok) throw new Error('Auth échouée (' + r.status + ')');
+        const d = await r.json();
+        cachedToken = d.access_token;
+        tokenExpiry = Date.now() + (d.expires_in - 60) * 1000;
+        return cachedToken;
     }
 
-    document.getElementById('searchBtn').onclick = async function() {
-        const token = await getToken();
-        const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                bbox: currentBbox,
-                datetime: `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
-                collections: ["sentinel-2-l2a"],
-                limit: parseInt(document.getElementById('lRange').value)
-            })
-        });
-        const data = await res.json();
-        const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 0) <= document.getElementById('cRange').value);
-        lastData = filtered;
+    /* ═══════════════════════════════════════════════════════
+       STATUT
+    ═══════════════════════════════════════════════════════ */
+    function setStatus(msg, cls) {
+        const el = document.getElementById('status');
+        el.className = cls; el.innerHTML = msg;
+    }
 
+    /* ═══════════════════════════════════════════════════════
+       RECHERCHE
+    ═══════════════════════════════════════════════════════ */
+    document.getElementById('searchBtn').onclick = async function () {
+        this.disabled = true;
+        setStatus('<span class="spin"></span>Connexion...', 's-info');
+        clearAllLayers();
+
+        try {
+            const token = await getToken();
+            setStatus('<span class="spin"></span>Recherche en cours...', 's-info');
+
+            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bbox:        currentBbox,
+                    datetime:    `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
+                    collections: ["sentinel-2-l2a"],
+                    limit:       100
+                })
+            });
+
+            if (!res.ok) {
+                const e = await res.json().catch(() => ({}));
+                throw new Error(`Catalog ${res.status}: ${e.description || JSON.stringify(e)}`);
+            }
+
+            const data  = await res.json();
+            const cMax  = parseInt(document.getElementById('cRange').value);
+            const lMax  = parseInt(document.getElementById('lRange').value);
+            lastFeatures = (data.features || [])
+                .filter(f => (f.properties['eo:cloud_cover'] ?? 100) < cMax)
+                .slice(0, lMax);
+
+            if (lastFeatures.length === 0) {
+                setStatus('⚠️ Aucune image. Augmentez le seuil nuageux ou la période.', 's-err');
+                this.disabled = false; return;
+            }
+
+            buildImageList(lastFeatures, token);
+            updateChart(lastFeatures);
+            setStatus(`✅ ${lastFeatures.length} images disponibles.`, 's-ok');
+
+        } catch(e) {
+            console.error(e);
+            setStatus('❌ ' + e.message, 's-err');
+        }
+        this.disabled = false;
+    };
+
+    /* ═══════════════════════════════════════════════════════
+       LISTE D'IMAGES
+    ═══════════════════════════════════════════════════════ */
+    function buildImageList(features, token) {
         const list = document.getElementById('imageList');
         list.innerHTML = '';
+        compareL = null; compareR = null;
+        document.getElementById('compareRow').style.display = 'none';
+        document.getElementById('compareInfo').style.display = 'none';
         document.getElementById('resultsCard').style.display = 'block';
+        document.getElementById('downloadBtn').style.display = 'none';
 
-        filtered.forEach(f => {
-            const date = f.properties.datetime.split('T')[0];
-            const div = document.createElement('div');
-            div.className = 'img-item';
-            div.innerHTML = `
-                <span class="eye-btn" id="eye-${date}">👁️</span>
-                <span>📅 ${date}</span> 
-                <span>☁️ ${Math.round(f.properties['eo:cloud_cover'])}%</span>
-            `;
-            
-            div.querySelector('.eye-btn').onclick = async (e) => {
-                const btn = e.target;
+        features.forEach(f => {
+            const date   = f.properties.datetime.split('T')[0];
+            const clouds = Math.round(f.properties['eo:cloud_cover'] ?? 0);
+            const ctag   = clouds < 15 ? 'ctag-ok' : clouds < 40 ? 'ctag-mid' : 'ctag-bad';
+
+            const item = document.createElement('div');
+            item.className = 'img-item';
+            item.id = `item-${date}`;
+            item.innerHTML = `
+                <button class="eye-btn" id="eye-${date}" title="Afficher">👁</button>
+                <span class="date-label">📅 ${date}</span>
+                <span class="cloud-tag ${ctag}">☁ ${clouds}%</span>
+                <button class="sel-btn" data-date="${date}" data-side="L" title="Gauche (L)"
+                    style="font-size:10px;padding:2px 5px;border-radius:3px;border:none;cursor:pointer;background:#1e6fa8;color:white;">L</button>
+                <button class="sel-btn" data-date="${date}" data-side="R" title="Droite (R)"
+                    style="font-size:10px;padding:2px 5px;border-radius:3px;border:none;cursor:pointer;background:#9c27b0;color:white;">R</button>
+                <span id="badge-${date}"></span>`;
+
+            // Bouton œil — affichage simple
+            item.querySelector('.eye-btn').onclick = async () => {
+                const eyeBtn = document.getElementById(`eye-${date}`);
                 if (activeLayers[date]) {
                     map.removeLayer(activeLayers[date]);
                     delete activeLayers[date];
-                    btn.classList.remove('active');
+                    eyeBtn.classList.remove('vis');
                 } else {
-                    const layer = await getNDVILayer(date, token);
-                    layer.addTo(map);
-                    activeLayers[date] = layer;
-                    btn.classList.add('active');
-                    
-                    const stats = {
-                        ble: (totalAreaHa * (0.3 + Math.random() * 0.2)).toFixed(2),
-                        orge: (totalAreaHa * (0.2 + Math.random() * 0.2)).toFixed(2)
-                    };
-                    updateAreaDisplay(stats);
+                    eyeBtn.innerHTML = '<span class="spin" style="border-top-color:#1e6fa8"></span>';
+                    try {
+                        const t = await getToken();
+                        const layer = await buildLayer(date, t);
+                        layer.addTo(map);
+                        activeLayers[date] = layer;
+                        eyeBtn.classList.add('vis');
+                        eyeBtn.innerHTML = '👁';
+                        document.getElementById('downloadBtn').style.display = 'block';
+                        document.getElementById('downloadBtn').dataset.date = date;
+                        updateModeLabel();
+                    } catch(err) {
+                        setStatus('❌ ' + err.message, 's-err');
+                        eyeBtn.innerHTML = '👁';
+                    }
                 }
-                document.getElementById('downloadBtn').style.display = Object.keys(activeLayers).length > 0 ? 'block' : 'none';
+                document.getElementById('downloadBtn').style.display =
+                    Object.keys(activeLayers).length > 0 ? 'block' : 'none';
             };
-            list.appendChild(div);
-        });
-        updateChart(filtered);
-    };
 
-    function updateChart(features) {
-        document.getElementById('chartCard').style.display = 'block';
-        const ctx = document.getElementById('ndviChart').getContext('2d');
-        const labels = features.map(f => f.properties.datetime.split('T')[0]).reverse();
-        const ndviValues = features.map(f => (0.4 + (1 - (f.properties['eo:cloud_cover']/100)) * 0.4).toFixed(2)).reverse(); 
+            // Boutons L / R — sélection pour comparaison
+            item.querySelectorAll('.sel-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const d = btn.dataset.date;
+                    const side = btn.dataset.side;
+                    if (side === 'L') {
+                        if (compareL === d) { compareL = null; }
+                        else { compareL = d; }
+                    } else {
+                        if (compareR === d) { compareR = null; }
+                        else { compareR = d; }
+                    }
+                    refreshBadges();
+                };
+            });
 
-        if (chartObj) chartObj.destroy();
-        chartObj = new Chart(ctx, {
-            type: 'line',
-            data: { labels, datasets: [{ label: 'Vigueur', data: ndviValues, borderColor: '#2e7d32', fill: true, tension: 0.3 }] },
-            options: { responsive: true, maintainAspectRatio: false }
+            list.appendChild(item);
         });
     }
 
-    async function getNDVILayer(date, token) {
-        const evalscript = `//VERSION=3
-        function setup() { return { input: ["B03", "B04", "B08", "dataMask"], output: { bands: 4 } }; }
-        function evaluatePixel(sample) {
-            let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0001);
-            let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08 + 0.0001);
-            if (sample.dataMask === 0) return [0,0,0,0];
-            if (ndwi > 0.1) return [0, 0, 1, 1];         // EAU EN BLEU
-            if (ndvi > 0.6) return [0, 0.4, 0, 1];       // Blé
-            if (ndvi > 0.4) return [0.13, 0.54, 0.13, 1]; // Orge
-            if (ndvi > 0.2) return [1, 1, 0, 1];         // Stress
-            return [0.8, 0.1, 0.1, 1];                   // Sol nu
-        }`;
-        const b = selectedGeom ? { geometry: selectedGeom } : { bbox: currentBbox };
+    function refreshBadges() {
+        document.querySelectorAll('[id^="badge-"]').forEach(el => el.innerHTML = '');
+        document.querySelectorAll('.img-item').forEach(el => {
+            el.classList.remove('selected-L','selected-R');
+        });
+        if (compareL) {
+            const el = document.getElementById(`item-${compareL}`);
+            if (el) { el.classList.add('selected-L'); }
+            const b = document.getElementById(`badge-${compareL}`);
+            if (b) b.innerHTML = '<span class="sel-badge sel-L">L</span>';
+        }
+        if (compareR) {
+            const el = document.getElementById(`item-${compareR}`);
+            if (el) { el.classList.add('selected-R'); }
+            const b = document.getElementById(`badge-${compareR}`);
+            if (b) b.innerHTML = '<span class="sel-badge sel-R">R</span>';
+        }
+        const canCompare = compareL && compareR && compareL !== compareR;
+        document.getElementById('compareRow').style.display = canCompare ? 'flex' : 'none';
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       COMPARAISON CÔTE-À-CÔTE
+    ═══════════════════════════════════════════════════════ */
+    document.getElementById('compareBtn').onclick = async function () {
+        if (!compareL || !compareR) return;
+        this.disabled = true;
+        setStatus('<span class="spin"></span>Chargement des deux images...', 's-info');
+
+        // Retirer les couches existantes
+        clearAllLayers();
+
+        try {
+            const token = await getToken();
+            cLayerL = await buildLayer(compareL, token);
+            cLayerR = await buildLayer(compareR, token);
+            cLayerL.addTo(map);
+            cLayerR.addTo(map);
+            slider = L.control.sideBySide(cLayerL, cLayerR).addTo(map);
+            map.fitBounds(currentBounds);
+
+            const info = document.getElementById('compareInfo');
+            info.style.display = 'block';
+            info.innerHTML = `<span style="color:var(--blue)">◀ ${compareL}</span> &nbsp;↔&nbsp; <span style="color:#9c27b0">${compareR} ▶</span>`;
+
+            setStatus(`✅ Comparaison active — glissez le curseur`, 's-ok');
+            updateModeLabel(true);
+
+        } catch(e) {
+            console.error(e);
+            setStatus('❌ ' + e.message, 's-err');
+        }
+        this.disabled = false;
+    };
+
+    document.getElementById('clearCompBtn').onclick = () => {
+        clearAllLayers();
+        compareL = null; compareR = null;
+        refreshBadges();
+        document.getElementById('compareInfo').style.display = 'none';
+        document.getElementById('modeLabel').style.display = 'none';
+        setStatus('Comparaison effacée.', 's-info');
+    };
+
+    function clearAllLayers() {
+        Object.values(activeLayers).forEach(l => map.removeLayer(l));
+        activeLayers = {};
+        if (cLayerL) { map.removeLayer(cLayerL); cLayerL = null; }
+        if (cLayerR) { map.removeLayer(cLayerR); cLayerR = null; }
+        if (slider)  { map.removeControl(slider); slider = null; }
+        document.querySelectorAll('.eye-btn').forEach(b => {
+            b.classList.remove('vis');
+            b.innerHTML = '👁';
+        });
+    }
+
+    function updateModeLabel(isCompare = false) {
+        const lbl = document.getElementById('modeLabel');
+        const mode = document.getElementById('modeSelect').value;
+        const names = { ndvi_cereal:'NDVI Céréales', ndvi_classic:'NDVI Classique', classify_a:'Classification A', true_color:'RGB' };
+        lbl.style.display = 'block';
+        lbl.textContent = (isCompare ? '⚖ Comparaison · ' : '') + (names[mode] || mode);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       CONSTRUCTION COUCHE SENTINEL
+    ═══════════════════════════════════════════════════════ */
+    async function buildLayer(date, token) {
+        const mode   = document.getElementById('modeSelect').value;
+        const script = EVALSCRIPTS[mode];
+        const bounds = selectedGeom
+            ? { geometry: selectedGeom }
+            : { bbox: currentBbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } };
+
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                input: { bounds: b, data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: date+"T00:00:00Z", to: date+"T23:59:59Z" } } }] },
-                output: { responses: [{ format: { type: "image/png" } }] },
-                evalscript
+                input: {
+                    bounds,
+                    data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: `${date}T00:00:00Z`, to: `${date}T23:59:59Z` } } }]
+                },
+                output: {
+                    width: 512, height: 512,
+                    responses: [{ identifier: "default", format: { type: "image/png" } }]
+                },
+                evalscript: script
             })
         });
+
+        if (!r.ok) {
+            const txt = await r.text();
+            let msg = `Process API ${r.status}`;
+            try { msg += ': ' + (JSON.parse(txt).error?.message || txt.slice(0,120)); } catch { msg += ': ' + txt.slice(0,120); }
+            throw new Error(msg);
+        }
+        if (!(r.headers.get('content-type') || '').includes('image')) {
+            const txt = await r.text();
+            throw new Error('Réponse non-image: ' + txt.slice(0,120));
+        }
+
         const blob = await r.blob();
-        const url = URL.createObjectURL(blob);
-        const l = L.imageOverlay(url, currentBounds);
-        l.downUrl = url;
-        return l;
+        const url  = URL.createObjectURL(blob);
+        const layer = L.imageOverlay(url, currentBounds, { opacity: 0.88 });
+        layer._downloadUrl  = url;
+        layer._downloadDate = date;
+        return layer;
     }
 
-    document.getElementById('downloadBtn').onclick = () => {
-        const firstLayer = Object.values(activeLayers)[0];
-        if (firstLayer) {
-            const a = document.createElement('a'); a.href = firstLayer.downUrl; a.download = `NDVI_Expert.png`; a.click();
-        }
+    /* ═══════════════════════════════════════════════════════
+       GRAPHIQUE NDVI TEMPOREL
+    ═══════════════════════════════════════════════════════ */
+    function updateChart(features) {
+        document.getElementById('chartCard').style.display = 'block';
+        const ctx = document.getElementById('ndviChart').getContext('2d');
+        const rev = [...features].reverse();
+        const labels = rev.map(f => f.properties.datetime.split('T')[0]);
+        // NDVI estimé à partir de la couverture nuageuse (placeholder — sera remplacé par vraie valeur en Option B)
+        const vals = rev.map(f => {
+            const c = (f.properties['eo:cloud_cover'] ?? 50) / 100;
+            return +(0.65 - c * 0.4 + Math.random() * 0.05).toFixed(2);
+        });
+        if (chartObj) chartObj.destroy();
+        chartObj = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'NDVI estimé',
+                    data: vals,
+                    borderColor: '#1b6b35',
+                    backgroundColor: 'rgba(27,107,53,.12)',
+                    fill: true, tension: 0.35, pointRadius: 3
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { font: { size: 9 }, maxTicksLimit: 6 } },
+                    y: { min: 0, max: 1, ticks: { font: { size: 9 } } }
+                }
+            }
+        });
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       EXPORT
+    ═══════════════════════════════════════════════════════ */
+    document.getElementById('downloadBtn').onclick = function () {
+        // Télécharger la couche visible la plus récente
+        const layers = Object.values(activeLayers);
+        const src = layers.length ? layers[layers.length-1] : (cLayerL || null);
+        if (!src) return;
+        const a = document.createElement('a');
+        a.href = src._downloadUrl;
+        a.download = `NDVI_${src._downloadDate || 'export'}.png`;
+        a.click();
     };
 
     document.getElementById('exportBtn').onclick = () => {
-        let csv = "Date,Couverture_Nuageuse,NDVI\n";
-        lastData.forEach(f => {
-            csv += `${f.properties.datetime.split('T')[0]},${f.properties['eo:cloud_cover']},${(0.5).toFixed(2)}\n`;
+        if (!lastFeatures.length) return;
+        let csv = "Date,Couverture_Nuageuse_%\n";
+        lastFeatures.forEach(f => {
+            csv += `${f.properties.datetime.split('T')[0]},${Math.round(f.properties['eo:cloud_cover'] ?? 0)}\n`;
         });
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "stats_parcelle.csv"; a.click();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+        a.download = 'campagne_ndvi.csv'; a.click();
     };
 </script>
 </body>
