@@ -279,8 +279,63 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 
 <script>
-/* ── leaflet-side-by-side v2 inline ── */
-!function(t){"function"==typeof define&&define.amd?define(["leaflet"],t):"object"==typeof module&&module.exports?module.exports=t(require("leaflet")):t(L)}(function(L){var S=L.Control.extend({options:{thumbSize:42,padding:0},initialize:function(l,r,o){this._leftLayer=l;this._rightLayer=r;L.setOptions(this,o)},onAdd:function(map){this._map=map;var c=this._container=L.DomUtil.create("div","leaflet-sbs");this._divider=L.DomUtil.create("div","leaflet-sbs-divider",c);var range=this._range=L.DomUtil.create("input","leaflet-sbs-range",c);range.type="range";range.min=0;range.max=100;range.step="any";range.value=50;L.DomEvent.on(range,"input change",this._updateClip,this);map.on("move zoom resize",this._updateClip,this);return c},onRemove:function(map){map.off("move zoom resize",this._updateClip,this);L.DomEvent.off(this._range,"input change",this._updateClip,this);[this._leftLayer,this._rightLayer].forEach(function(l){if(l&&l.getContainer())l.getContainer().style.clip=""})},_updateClip:function(){var map=this._map,nw=map.getBounds().getNorthWest(),se=map.getBounds().getSouthEast(),tl=map.latLngToContainerPoint(nw),br=map.latLngToContainerPoint(se),x=parseInt(this._range.value)/100*map.getSize().x;this._divider.style.left=x+"px";if(this._leftLayer&&this._leftLayer.getContainer())this._leftLayer.getContainer().style.clip="rect("+tl.y+"px,"+x+"px,"+br.y+"px,"+tl.x+"px)";if(this._rightLayer&&this._rightLayer.getContainer())this._rightLayer.getContainer().style.clip="rect("+tl.y+"px,"+br.x+"px,"+br.y+"px,"+x+"px)";return this}});L.control.sideBySide=function(l,r,o){return new S(l,r,o)};return S});
+/* ── Side-by-side pour L.imageOverlay ── */
+(function(){
+    // L.imageOverlay expose _image (HTMLImageElement), pas getContainer()
+    // On patche directement l'élément _image via le pane parent
+    function getEl(layer) {
+        // imageOverlay: _image est l'élément img
+        if (layer._image) return layer._image;
+        // fallback pour tileLayer etc.
+        if (layer.getContainer) return layer.getContainer();
+        return null;
+    }
+
+    L.Control.SideBySide = L.Control.extend({
+        options: { thumbSize: 42 },
+        initialize: function(left, right, opts) {
+            this._left  = left;
+            this._right = right;
+            L.setOptions(this, opts);
+        },
+        onAdd: function(map) {
+            this._map = map;
+            var c = this._container = L.DomUtil.create('div','leaflet-sbs');
+            this._divider = L.DomUtil.create('div','leaflet-sbs-divider', c);
+            var r = this._range = L.DomUtil.create('input','leaflet-sbs-range', c);
+            r.type='range'; r.min=0; r.max=100; r.step='any'; r.value=50;
+            L.DomEvent.on(r, 'input change', this._clip, this);
+            map.on('move zoom resize zoomend moveend', this._clip, this);
+            // Premier clip après rendu
+            setTimeout(() => this._clip(), 100);
+            return c;
+        },
+        onRemove: function(map) {
+            map.off('move zoom resize zoomend moveend', this._clip, this);
+            L.DomEvent.off(this._range, 'input change', this._clip, this);
+            [this._left, this._right].forEach(function(l) {
+                var el = getEl(l);
+                if (el) el.style.clip = '';
+            });
+        },
+        _clip: function() {
+            var map = this._map;
+            var nw  = map.getBounds().getNorthWest();
+            var se  = map.getBounds().getSouthEast();
+            var tl  = map.latLngToContainerPoint(nw);
+            var br  = map.latLngToContainerPoint(se);
+            var x   = parseFloat(this._range.value) / 100 * map.getSize().x;
+            this._divider.style.left = x + 'px';
+            var lEl = getEl(this._left);
+            var rEl = getEl(this._right);
+            if (lEl) lEl.style.clip = 'rect('+tl.y+'px,'+x+'px,'+br.y+'px,'+tl.x+'px)';
+            if (rEl) rEl.style.clip = 'rect('+tl.y+'px,'+br.x+'px,'+br.y+'px,'+x+'px)';
+        }
+    });
+    L.control.sideBySide = function(l, r, o) {
+        return new L.Control.SideBySide(l, r, o);
+    };
+})();
 </script>
 
 <script>
@@ -486,20 +541,73 @@ function evaluatePixel(s) {
        INFOBULLE NDVI — activée seulement sur parcelle + image visible
     ═══════════════════════════════════════════════════════ */
     function enableTooltip(ndviImgUrl, bounds) {
-        // Charger l'image NDVI dans un canvas offscreen pour lire les pixels
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
             const canvas = document.createElement('canvas');
             canvas.width  = img.width;
             canvas.height = img.height;
-            canvas.getContext('2d').drawImage(img, 0, 0);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
             ndviLayerCanvas = canvas;
             ndviBounds      = bounds;
             tooltipActive   = true;
+            // Calculer les surfaces par type de culture
+            computeCultureSurfaces(ctx, img.width, img.height);
         };
         img.onerror = () => { tooltipActive = false; };
         img.src = ndviImgUrl;
+    }
+
+    // Calcule la répartition des cultures en lisant les pixels NDVI encodés
+    function computeCultureSurfaces(ctx, w, h) {
+        if (!totalAreaHa || totalAreaHa === '—') return;
+        const data = ctx.getImageData(0, 0, w, h).data;
+        let total = 0;
+        const counts = { eau:0, arbo:0, ble:0, cereales:0, maraicher:0, levee:0, jachere:0, sol:0 };
+
+        for (let i = 0; i < data.length; i += 4) {
+            const a = data[i+3];
+            if (a < 10) continue; // transparent = hors parcelle
+            total++;
+            // Décoder NDVI depuis canal R
+            const ndvi = (data[i] / 255) * 2 - 1;
+            if (ndvi < -0.05)      counts.eau++;
+            else if (ndvi < 0.05)  counts.sol++;
+            else if (ndvi < 0.15)  counts.jachere++;
+            else if (ndvi < 0.25)  counts.levee++;
+            else if (ndvi < 0.40)  counts.cereales++;
+            else if (ndvi < 0.55)  counts.ble++;
+            else if (ndvi < 0.70)  counts.arbo++;
+            else                   counts.maraicher++;
+        }
+
+        if (total === 0) return;
+        const ha = parseFloat(totalAreaHa);
+
+        const cultures = [
+            { key:'eau',      icon:'💧', color:'#1461bf', label:'Eau / Oued' },
+            { key:'arbo',     icon:'🫒', color:'#599926', label:'Oliviers / Arbo' },
+            { key:'ble',      icon:'🌾', color:'#0d7219', label:'Blé (vigoureux)' },
+            { key:'cereales', icon:'🌿', color:'#73bf33', label:'Orge / Céréales' },
+            { key:'maraicher',icon:'🥬', color:'#00cc99', label:'Maraîcher' },
+            { key:'levee',    icon:'🌱', color:'#e8c800', label:'Levée / Stress' },
+            { key:'jachere',  icon:'🟤', color:'#cc8c33', label:'Jachère' },
+            { key:'sol',      icon:'🪨', color:'#bf4026', label:'Sol nu' },
+        ];
+
+        let html = `📏 Superficie totale : <b>${totalAreaHa} ha</b><br><br>`;
+        cultures.forEach(c => {
+            const pct = (counts[c.key] / total * 100);
+            if (pct < 0.5) return; // ignorer < 0.5%
+            const surfHa = (ha * pct / 100).toFixed(1);
+            html += `${c.icon} <span style="color:${c.color}"><b>${c.label}</b></span> : 
+                     ${surfHa} ha <span style="color:#888">(${pct.toFixed(0)}%)</span><br>`;
+        });
+
+        const el = document.getElementById('areaDisplay');
+        el.innerHTML = html;
+        el.style.display = 'block';
     }
 
     function disableTooltip() {
@@ -575,12 +683,11 @@ function evaluatePixel(s) {
         el.className = cls; el.innerHTML = msg;
     }
 
-    function showAreaDisplay(stats=null) {
-        let html = `📏 Superficie : <b>${totalAreaHa} ha</b>`;
-        if (stats) for (const [k,v] of Object.entries(stats))
-            html += `<br>${v.icon} <span style="color:${v.color}">${k} : ${v.ha} ha</span>`;
+    function showAreaDisplay() {
         const el = document.getElementById('areaDisplay');
-        el.innerHTML = html; el.style.display = 'block';
+        el.innerHTML = `📏 Superficie : <b>${totalAreaHa} ha</b><br>
+            <span style="color:#888;font-size:11px;">Affichez une image pour voir la répartition des cultures</span>`;
+        el.style.display = 'block';
     }
 
     function updateModeLabel(isCompare=false) {
@@ -665,6 +772,8 @@ function evaluatePixel(s) {
         const list = document.getElementById('imageList');
         list.innerHTML = '';
         compareL = null; compareR = null;
+        // Vider la map de références
+        Object.keys(dateItemMap).forEach(k => delete dateItemMap[k]);
         document.getElementById('compareRow').style.display   = 'none';
         document.getElementById('compareInfo').style.display  = 'none';
         document.getElementById('resultsCard').style.display  = 'block';
@@ -715,6 +824,9 @@ function evaluatePixel(s) {
 
             item.append(eyeBtn, dateSpan, cloudSpan, btnL, btnR, badge);
             list.appendChild(item);
+
+            // Enregistrer les refs DOM pour accès direct dans refreshSelectionUI
+            dateItemMap[date] = { item, btnL, btnR, badge };
 
             // ── Listener 👁 ──
             eyeBtn.addEventListener('click', async () => {
@@ -778,60 +890,49 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        SÉLECTION L/R — UI
     ═══════════════════════════════════════════════════════ */
+    // Map date → {item, btnL, btnR, badge} pour accès direct sans querySelector
+    const dateItemMap = {};
+
     function refreshSelectionUI() {
-        // Reset tous les styles
-        document.querySelectorAll('.img-item').forEach(item => {
+        // 1. Reset tout
+        Object.values(dateItemMap).forEach(({item, btnL, btnR, badge}) => {
             item.style.borderColor = '';
             item.style.background  = '';
-        });
-        document.querySelectorAll('.sel-badge-slot').forEach(el => el.innerHTML='');
-        document.querySelectorAll('.side-L').forEach(btn => {
-            btn.style.background = 'transparent';
-            btn.style.color      = '#1e6fa8';
-        });
-        document.querySelectorAll('.side-R').forEach(btn => {
-            btn.style.background = 'transparent';
-            btn.style.color      = '#9c27b0';
+            btnL.style.background  = 'transparent';
+            btnL.style.color       = '#1e6fa8';
+            btnR.style.background  = 'transparent';
+            btnR.style.color       = '#9c27b0';
+            badge.innerHTML        = '';
         });
 
-        // Appliquer sélection L
-        if (compareL) {
-            const items = document.querySelectorAll('.img-item');
-            items.forEach(item => {
-                const lBtn = item.querySelector('.side-L');
-                const badge = item.querySelector('.sel-badge-slot');
-                if (!lBtn) return;
-                // Identifier la date via le dateSpan
-                const dateSpan = item.querySelector('.date-label');
-                if (!dateSpan || !dateSpan.textContent.includes(compareL)) return;
-                item.style.borderColor = '#1e6fa8';
-                item.style.background  = '#e8f0fe';
-                lBtn.style.background  = '#1e6fa8';
-                lBtn.style.color       = 'white';
-                badge.innerHTML = '<span class="sel-badge sel-L">◀ L</span>';
-            });
+        // 2. Marquer L
+        if (compareL && dateItemMap[compareL]) {
+            const {item, btnL, badge} = dateItemMap[compareL];
+            item.style.borderColor = '#1e6fa8';
+            item.style.background  = '#e8f0fe';
+            btnL.style.background  = '#1e6fa8';
+            btnL.style.color       = 'white';
+            badge.innerHTML        = '<span class="sel-badge sel-L">◀ L</span>';
         }
 
-        // Appliquer sélection R
-        if (compareR) {
-            const items = document.querySelectorAll('.img-item');
-            items.forEach(item => {
-                const rBtn = item.querySelector('.side-R');
-                const badge = item.querySelector('.sel-badge-slot');
-                if (!rBtn) return;
-                const dateSpan = item.querySelector('.date-label');
-                if (!dateSpan || !dateSpan.textContent.includes(compareR)) return;
-                item.style.borderColor = '#9c27b0';
-                item.style.background  = '#f3e5f5';
-                rBtn.style.background  = '#9c27b0';
-                rBtn.style.color       = 'white';
-                badge.innerHTML = '<span class="sel-badge sel-R">R ▶</span>';
-            });
+        // 3. Marquer R
+        if (compareR && dateItemMap[compareR]) {
+            const {item, btnR, badge} = dateItemMap[compareR];
+            item.style.borderColor = '#9c27b0';
+            item.style.background  = '#f3e5f5';
+            btnR.style.background  = '#9c27b0';
+            btnR.style.color       = 'white';
+            // Si même item que L, ajouter à côté
+            badge.innerHTML += '<span class="sel-badge sel-R">R ▶</span>';
         }
 
-        // Afficher/masquer bouton Comparer
+        // 4. Bouton Comparer — visible seulement si L et R différents sont choisis
         const canCompare = compareL && compareR && compareL !== compareR;
-        document.getElementById('compareRow').style.display = canCompare ? 'flex' : 'none';
+        const row = document.getElementById('compareRow');
+        row.style.display = canCompare ? 'flex' : 'none';
+        if (canCompare) {
+            row.scrollIntoView({behavior:'smooth', block:'nearest'});
+        }
     }
 
     /* ═══════════════════════════════════════════════════════
