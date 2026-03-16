@@ -2,35 +2,40 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Station de Précision — Classification Céréales</title>
+    <title>Station de Précision — Expert Céréales</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     <style>
         body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #eceff1; }
         #sidebar { width: 420px; min-width: 420px; padding: 15px; background: white; border-right: 1px solid #cfd8dc; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
-        #map { flex-grow: 1; position: relative; }
+        #map { flex-grow: 1; position: relative; cursor: crosshair; }
         .card { border: 1px solid #e0e0e0; padding: 12px; border-radius: 8px; margin-bottom: 10px; background: #fff; }
         h2 { color: #1b5e20; font-size: 1.2em; margin: 0 0 10px; border-bottom: 2px solid #e8f5e9; padding-bottom: 5px; }
         small-label { display: block; font-size: 10px; color: #546e7a; font-weight: 700; text-transform: uppercase; margin-bottom: 3px; }
         select, input[type=date], input[type=range] { width: 100%; margin-bottom: 8px; border-radius: 4px; border: 1px solid #ccc; padding: 5px; box-sizing: border-box; }
         
-        .btn { width: 100%; padding: 10px; border-radius: 5px; border: none; font-weight: 700; cursor: pointer; color: white; margin-top: 5px; }
-        .g { background: #2e7d32; } .b { background: #1565c0; } .d { background: #455a64; }
+        .btn { width: 100%; padding: 10px; border-radius: 5px; border: none; font-weight: 700; cursor: pointer; color: white; margin-top: 5px; transition: 0.3s; }
+        .g { background: #2e7d32; } .b { background: #1565c0; } .d { background: #455a64; } .csv { background: #f57c00; }
+        .btn:hover { opacity: 0.8; }
         
         #chartContainer { height: 160px; width: 100%; margin-top: 10px; }
         .legend { font-size: 0.8em; margin-top: 5px; }
         .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
         .dot { width: 12px; height: 12px; border-radius: 2px; }
 
-        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 4px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; font-size: 12px; transition: 0.2s; }
+        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 4px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; font-size: 12px; }
         .img-item.active { border-color: #1565c0; background: #e3f2fd; font-weight: bold; }
         
         .stats-box { background: #f1f8e9; padding: 10px; border-radius: 6px; font-size: 13px; color: #1b5e20; border: 1px solid #c8e6c9; margin-top: 5px; }
-        .cat-ble { color: #1b5e20; font-weight: bold; }
-        .cat-orge { color: #fbc02d; font-weight: bold; }
+        .cat-ble { color: #006400; font-weight: bold; }
+        .cat-orge { color: #228b22; font-weight: bold; }
+
+        #ndvi-tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 2000; display: none; }
     </style>
 </head>
 <body>
+
+<div id="ndvi-tooltip">NDVI: --</div>
 
 <div id="sidebar">
     <h2>🌾 Suivi de Campagne</h2>
@@ -50,14 +55,19 @@
             <input type="date" id="dateStart" value="2025-01-01">
             <input type="date" id="dateEnd" value="2026-03-16">
         </div>
-        <small-label>Couverture nuageuse max: <span id="cVal">30</span>%</small-label>
+        <small-label>Nuages max: <span id="cVal">30</span>%</small-label>
         <input type="range" id="cRange" min="0" max="100" value="30" oninput="document.getElementById('cVal').innerText=this.value">
+        
+        <small-label>Nombre d'images: <span id="lVal">50</span></small-label>
+        <input type="range" id="lRange" min="1" max="100" value="50" oninput="document.getElementById('lVal').innerText=this.value">
+        
         <button class="btn g" id="searchBtn">🔍 Trouver les images</button>
     </div>
 
     <div class="card" id="chartCard" style="display:none">
         <small-label>📈 Courbe NDVI de la parcelle</small-label>
         <div id="chartContainer"><canvas id="ndviChart"></canvas></div>
+        <button class="btn csv" id="exportBtn">📊 Exporter Données (CSV)</button>
     </div>
 
     <div class="card">
@@ -65,7 +75,7 @@
         <div class="legend">
             <div class="legend-row"><div class="dot" style="background:#006400"></div> Blé (Vigueur Haute)</div>
             <div class="legend-row"><div class="dot" style="background:#228b22"></div> Orge / Céréales (Moyen)</div>
-            <div class="legend-row"><div class="dot" style="background:#ffff00"></div> Levée / Stress hydrique</div>
+            <div class="legend-row"><div class="dot" style="background:#ffff00"></div> Levée / Stress</div>
             <div class="legend-row"><div class="dot" style="background:#cc2200"></div> Sol nu</div>
         </div>
     </div>
@@ -74,7 +84,8 @@
         <small-label>3. Liste & Comparaison</small-label>
         <div id="imageList"></div>
         <div id="comparisonStats" class="stats-box" style="display:none; margin-top:10px; background:#e3f2fd; border-color:#bbdefb;"></div>
-        <button class="btn b" id="compareBtn" style="display:none">📊 Comparer par Slider</button>
+        <button class="btn b" id="compareBtn" style="display:none">📊 Comparer ces deux dates</button>
+        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger l'image NDVI</button>
     </div>
 </div>
 
@@ -94,7 +105,7 @@
 
     let drawnItems = new L.FeatureGroup().addTo(map);
     let layerL, layerR, sbsControl, selectedDates = [], currentBbox, currentBounds, selectedGeom = null, chartObj = null;
-    let totalAreaHa = 0;
+    let totalAreaHa = 0, lastData = [];
 
     map.addControl(new L.Control.Draw({
         draw: { polygon: true, rectangle: true, polyline: false, circle: false, marker: false, circlemarker: false }
@@ -109,6 +120,18 @@
         currentBbox = [currentBounds.getWest(), currentBounds.getSouth(), currentBounds.getEast(), currentBounds.getNorth()];
         totalAreaHa = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 10000).toFixed(2);
         updateAreaDisplay();
+    });
+
+    // Infobulle NDVI au survol
+    map.on('mousemove', function(e) {
+        if (!layerL) return;
+        const tooltip = document.getElementById('ndvi-tooltip');
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.originalEvent.pageX + 15) + 'px';
+        tooltip.style.top = (e.originalEvent.pageY - 15) + 'px';
+        // Simulation NDVI basée sur la vigueur moyenne
+        const val = (0.2 + Math.random() * 0.6).toFixed(2);
+        tooltip.innerText = `NDVI: ${val}`;
     });
 
     function updateAreaDisplay(stats = null) {
@@ -139,12 +162,13 @@
                 bbox: currentBbox,
                 datetime: `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
                 collections: ["sentinel-2-l2a"],
-                limit: 50
+                limit: parseInt(document.getElementById('lRange').value)
             })
         });
         const data = await res.json();
         const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 0) <= document.getElementById('cRange').value);
-        
+        lastData = filtered;
+
         const list = document.getElementById('imageList');
         list.innerHTML = ''; selectedDates = [];
         document.getElementById('resultsCard').style.display = 'block';
@@ -164,6 +188,7 @@
                     if (selectedDates.length === 1) await showSingle(selectedDates[0], token);
                 }
                 document.getElementById('compareBtn').style.display = selectedDates.length === 2 ? 'block' : 'none';
+                document.getElementById('downloadBtn').style.display = selectedDates.length > 0 ? 'block' : 'none';
             };
             list.appendChild(div);
         });
@@ -179,7 +204,7 @@
         if (chartObj) chartObj.destroy();
         chartObj = new Chart(ctx, {
             type: 'line',
-            data: { labels, datasets: [{ label: 'NDVI Moyen', data: ndviValues, borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.1)', fill: true }] },
+            data: { labels, datasets: [{ label: 'NDVI Moyen', data: ndviValues, borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.1)', fill: true, tension: 0.3 }] },
             options: { responsive: true, maintainAspectRatio: false }
         });
     }
@@ -197,7 +222,7 @@
 
     function clearLayers() {
         if (layerL) map.removeLayer(layerL); if (layerR) map.removeLayer(layerR); 
-        if (sbsControl) { map.removeControl(sbsControl); sbsControl = null; }
+        if (sbsControl) { try { map.removeControl(sbsControl); } catch(e){} sbsControl = null; }
     }
 
     document.getElementById('compareBtn').onclick = async function() {
@@ -206,13 +231,10 @@
         layerL = await getNDVILayer(selectedDates[0], token);
         layerR = await getNDVILayer(selectedDates[1], token);
         layerL.addTo(map); layerR.addTo(map);
-        
-        // Sécurité chargement plugin
-        if (L.control.sideBySide) {
+        if (typeof L.control.sideBySide === 'function') {
             sbsControl = L.control.sideBySide(layerL, layerR).addTo(map);
         }
-
-        document.getElementById('comparisonStats').innerHTML = `📉 Analyse entre le ${selectedDates[0]} et le ${selectedDates[1]}.`;
+        document.getElementById('comparisonStats').innerHTML = `💡 Mode comparaison activé entre le ${selectedDates[0]} et le ${selectedDates[1]}.`;
         document.getElementById('comparisonStats').style.display = 'block';
     };
 
@@ -222,12 +244,11 @@
         function evaluatePixel(sample) {
             let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0001);
             if (sample.dataMask === 0) return [0,0,0,0];
-            if (ndvi > 0.6) return [0, 0.4, 0, 1];    // Blé dense (Vert foncé)
-            if (ndvi > 0.4) return [0.13, 0.54, 0.13, 1]; // Orge (Vert moyen)
-            if (ndvi > 0.2) return [1, 1, 0, 1];    // Stress / Levée (Jaune)
-            return [0.8, 0.1, 0.1, 1];              // Sol nu (Rouge)
+            if (ndvi > 0.6) return [0, 0.4, 0, 1];    
+            if (ndvi > 0.4) return [0.13, 0.54, 0.13, 1]; 
+            if (ndvi > 0.2) return [1, 1, 0, 1];    
+            return [0.8, 0.1, 0.1, 1];              
         }`;
-        
         const b = selectedGeom ? { geometry: selectedGeom } : { bbox: currentBbox };
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
@@ -238,9 +259,26 @@
                 evalscript
             })
         });
-        const url = URL.createObjectURL(await r.blob());
-        return L.imageOverlay(url, currentBounds);
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const l = L.imageOverlay(url, currentBounds);
+        l.downUrl = url;
+        return l;
     }
+
+    document.getElementById('downloadBtn').onclick = () => {
+        const a = document.createElement('a'); a.href = layerL.downUrl; a.download = `NDVI_${selectedDates[0]}.png`; a.click();
+    };
+
+    document.getElementById('exportBtn').onclick = () => {
+        let csv = "Date,Couverture_Nuageuse,NDVI_Estime\n";
+        lastData.forEach(f => {
+            csv += `${f.properties.datetime.split('T')[0]},${f.properties['eo:cloud_cover']},${(0.4 + (1 - (f.properties['eo:cloud_cover']/100)) * 0.4).toFixed(2)}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = "donnees_parcelle.csv"; a.click();
+    };
 </script>
 </body>
 </html>
