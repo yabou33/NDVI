@@ -2,154 +2,174 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>NDVI Fix - Nabeul</title>
+    <title>Explorateur NDVI - Tunisie</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: #f0f2f5; }
-        #sidebar { width: 350px; padding: 20px; background: white; border-right: 1px solid #ddd; z-index: 1000; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #f0f2f5; }
+        #sidebar { width: 400px; padding: 20px; background: white; border-right: 1px solid #ddd; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
         #map { flex-grow: 1; }
-        .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-        button { width: 100%; padding: 12px; background: #2e7d32; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        #status { margin-top: 10px; font-size: 0.85em; color: #d32f2f; font-weight: bold; }
-        .img-item { border: 1px solid #ccc; padding: 10px; margin-top: 5px; cursor: pointer; border-radius: 4px; }
-        .img-item.active { background: #e3f2fd; border-color: #1976d2; }
+        .card { border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 15px; background: #fff; }
+        h2 { color: #2e7d32; margin-top: 0; }
+        select, input, button { width: 100%; padding: 10px; margin-top: 8px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #2e7d32; color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #1b5e20; }
+        #status { margin-top: 10px; font-size: 0.9em; min-height: 20px; }
+        .img-item { border: 1px solid #ddd; padding: 10px; margin-top: 8px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; }
+        .img-item.active { border-color: #1565c0; background: #e3f2fd; }
+        .download-btn { background: #555; margin-top: 5px; font-size: 0.8em; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>Analyse Satellite</h2>
+    <h2>Explorateur NDVI</h2>
+    
     <div class="card">
-        <button id="searchBtn">Démarrer la recherche</button>
-        <div id="status">En attente de clic...</div>
+        <label><strong>1. Choisir une Région</strong></label>
+        <select id="regionSelect">
+            <option value="[10.85, 36.75, 10.87, 36.77]">Nabeul (Cap Bon)</option>
+            <option value="[10.15, 36.80, 10.25, 36.90]">Ariana</option>
+            <option value="[9.15, 36.68, 9.25, 36.78]">Béja</option>
+            <option value="[10.58, 35.80, 10.65, 35.85]">Sousse</option>
+        </select>
     </div>
+
+    <div class="card">
+        <label><strong>2. Période</strong></label>
+        <input type="date" id="dateDebut" value="2025-01-01">
+        <input type="date" id="dateFin" value="2026-03-16">
+        <button id="searchBtn" style="margin-top:15px;">Trouver des images</button>
+        <div id="status">Prêt.</div>
+    </div>
+
     <div id="results" class="card" style="display:none">
+        <label><strong>3. Sélectionnez 1 ou 2 images</strong></label>
         <div id="imageList"></div>
-        <button id="compareBtn" style="display:none; margin-top:10px; background:#1565c0;">Afficher NDVI</button>
+        <button id="compareBtn" style="display:none; margin-top:20px; background:#1565c0;">Lancer l'Analyse</button>
+        <button id="downloadBtn" class="download-btn" style="display:none;">⬇️ Télécharger le NDVI</button>
     </div>
 </div>
+
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
 
 <script>
-    // --- CONFIGURATION ---
     const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
     const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh"; 
-    
-    const bboxNabeul = [10.861176, 36.755022, 10.874609, 36.769634];
-    const bounds = L.latLngBounds([36.755022, 10.861176], [36.769634, 10.874609]);
 
-    const map = L.map('map').setView([36.762, 10.867], 14);
+    const map = L.map('map').setView([36.76, 10.86], 10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    L.rectangle(bounds, {color: "green", weight: 1}).addTo(map);
 
-    let layerL, layerR, slider, selected = [];
+    let layerL, layerR, slider, currentBbox, currentBounds, selected = [];
 
-    // AUTHENTIFICATION
     async function getToken() {
-        const body = new URLSearchParams({
-            'grant_type': 'client_credentials',
-            'client_id': CLIENT_ID,
-            'client_secret': CLIENT_SECRET
-        });
         const r = await fetch('https://services.sentinel-hub.com/oauth/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body
+            body: new URLSearchParams({ 'grant_type': 'client_credentials', 'client_id': CLIENT_ID, 'client_secret': CLIENT_SECRET })
         });
-        if (r.ok) return (await r.json()).access_token;
-        const err = await r.json();
-        throw new Error(err.error_description || "Erreur d'identifiants");
+        return r.ok ? (await r.json()).access_token : null;
     }
 
-    // RECHERCHE
     document.getElementById('searchBtn').onclick = async function() {
         const status = document.getElementById('status');
-        try {
-            status.style.color = "blue";
-            status.innerText = "Connexion...";
-            const token = await getToken();
-            
-            status.innerText = "Recherche d'images...";
-            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    "bbox": bboxNabeul,
-                    "datetime": "2025-01-01T00:00:00Z/2026-03-16T23:59:59Z",
-                    "collections": ["sentinel-2-l2a"],
-                    "limit": 5,
-                    "query": { "eo:cloud_cover": { "lt": 20 } }
-                })
-            });
+        const token = await getToken();
+        if(!token) { status.innerText = "Erreur d'accès."; return; }
 
-            const data = await res.json();
-            if (!res.ok) throw new Error("Erreur catalogue");
+        currentBbox = JSON.parse(document.getElementById('regionSelect').value);
+        currentBounds = L.latLngBounds([currentBbox[1], currentBbox[0]], [currentBbox[3], currentBbox[2]]);
+        map.fitBounds(currentBounds);
 
-            const list = document.getElementById('imageList');
-            list.innerHTML = ""; selected = [];
-            document.getElementById('results').style.display = "block";
-            
-            data.features.forEach(f => {
-                const date = f.properties.datetime.split('T')[0];
-                const div = document.createElement('div');
-                div.className = 'img-item';
-                div.innerText = "📅 " + date + " (☁️ " + Math.round(f.properties["eo:cloud_cover"]) + "%)";
-                div.onclick = () => {
-                    div.classList.toggle('active');
-                    const i = selected.findIndex(s => s.date === date);
-                    if(i > -1) selected.splice(i, 1);
-                    else if(selected.length < 2) selected.push({date, token});
-                    document.getElementById('compareBtn').style.display = selected.length > 0 ? "block" : "none";
-                };
-                list.appendChild(div);
-            });
-            status.style.color = "green";
-            status.innerText = data.features.length + " images prêtes.";
-        } catch (e) {
-            status.style.color = "red";
-            status.innerText = "ERREUR : " + e.message;
-        }
+        const dStart = document.getElementById('dateDebut').value;
+        const dEnd = document.getElementById('dateFin').value;
+
+        status.innerText = "Recherche...";
+        const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                "bbox": currentBbox,
+                "datetime": `${dStart}T00:00:00Z/${dEnd}T23:59:59Z`,
+                "collections": ["sentinel-2-l2a"],
+                "limit": 10,
+                "query": { "eo:cloud_cover": { "lt": 30 } }
+            })
+        });
+
+        const data = await res.json();
+        const list = document.getElementById('imageList');
+        list.innerHTML = ""; selected = [];
+        document.getElementById('results').style.display = "block";
+
+        data.features.forEach(f => {
+            const date = f.properties.datetime.split('T')[0];
+            const div = document.createElement('div');
+            div.className = 'img-item';
+            div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${Math.round(f.properties["eo:cloud_cover"])}%</span>`;
+            div.onclick = () => {
+                const idx = selected.findIndex(s => s.date === date);
+                if(idx > -1) { selected.splice(idx, 1); div.classList.remove('active'); }
+                else if(selected.length < 2) { selected.push({date, token}); div.classList.add('active'); }
+                document.getElementById('compareBtn').style.display = selected.length > 0 ? "block" : "none";
+            };
+            list.appendChild(div);
+        });
+        status.innerText = data.features.length + " images trouvées.";
     };
 
-    // NDVI
     document.getElementById('compareBtn').onclick = async function() {
-        document.getElementById('status').innerText = "Rendu NDVI...";
-        if(layerL) map.removeLayer(layerL); if(layerR) map.removeLayer(layerR); if(slider) map.removeControl(slider);
+        if(layerL) map.removeLayer(layerL); if(layerR) map.removeLayer(layerR);
+        if(slider) map.removeControl(slider);
 
-        layerL = await getNDVI(selected[0]);
+        layerL = await getNDVILayer(selected[0]);
         layerL.addTo(map);
+
         if(selected[1]) {
-            layerR = await getNDVI(selected[1]);
+            layerR = await getNDVILayer(selected[1]);
             layerR.addTo(map);
-            slider = L.control.sideBySide(layerL, layerR).addTo(map);
+            // Correction sécurisée du comparateur
+            if (L.control.sideBySide) {
+                slider = L.control.sideBySide(layerL, layerR).addTo(map);
+            }
         }
+        document.getElementById('downloadBtn').style.display = "block";
     };
 
-    async function getNDVI(img) {
-        const es = `//VERSION=3
+    async function getNDVILayer(img) {
+        const evalscript = `//VERSION=3
         function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
         function evaluate(s) {
             let v = (s.B08 - s.B04) / (s.B08 + s.B04);
             if (s.dataMask == 0) return [0,0,0,0];
             return v < 0.2 ? [0.8,0.1,0.1,1] : v < 0.4 ? [0.9,0.9,0.2,1] : [0.1,0.5,0.1,1];
         }`;
+
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${img.token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                input: { 
-                    bounds: { bbox: bboxNabeul, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } },
+                input: {
+                    bounds: { bbox: currentBbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } },
                     data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: img.date+"T00:00:00Z", to: img.date+"T23:59:59Z" } } }]
                 },
                 output: { responses: [{ format: { type: "image/png" } }] },
-                evalscript: es
+                evalscript: evalscript
             })
         });
-        return L.imageOverlay(URL.createObjectURL(await r.blob()), bounds);
+        const url = URL.createObjectURL(await r.blob());
+        const l = L.imageOverlay(url, currentBounds);
+        l.options.downloadUrl = url; // Stockage pour le téléchargement
+        return l;
     }
+
+    document.getElementById('downloadBtn').onclick = function() {
+        const link = document.createElement('a');
+        link.href = layerL.options.downloadUrl;
+        link.download = `NDVI_${selected[0].date}.png`;
+        link.click();
+    };
 </script>
 </body>
 </html>
