@@ -79,11 +79,85 @@
         });
     };
 
-    document.getElementById('regionSelect').onchange = (e) => {
-        highlight.clearLayers();
-        const l = L.geoJSON(geoData.features[e.target.value], {style:{color:'#2e7d32', weight:2}}).addTo(highlight);
-        map.fitBounds(l.getBounds());
-    };
+    document.getElementById('searchBtn').onclick = async () => {
+    const s = document.getElementById('status');
+    s.style.display = "block"; s.innerText = "Recherche en cours...";
+    
+    const token = await getToken();
+    if(!token) { s.innerText = "Erreur Token"; return; }
+
+    // On récupère la zone sélectionnée
+    const selection = document.getElementById('regionSelect').value;
+    const f = geoData.features[selection];
+    
+    // Calcul de la BBox avec Leaflet
+    const layer = L.geoJSON(f);
+    const b = layer.getBounds();
+    
+    // Formatage strict pour Sentinel Hub [minX, minY, maxX, maxY]
+    const bbox = [
+        parseFloat(b.getWest().toFixed(6)), 
+        parseFloat(b.getSouth().toFixed(6)), 
+        parseFloat(b.getEast().toFixed(6)), 
+        parseFloat(b.getNorth().toFixed(6))
+    ];
+
+    try {
+        const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "bbox": bbox,
+                "datetime": `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
+                "collections": ["sentinel-2-l2a"],
+                "limit": 10,
+                "query": {
+                    "eo:cloud_cover": { "lt": 30 }
+                }
+            })
+        });
+
+        if (!res.ok) {
+            const errData = await res.json();
+            console.error("Détails 400:", errData);
+            s.innerText = "Erreur de paramètres (400)";
+            return;
+        }
+
+        const data = await res.json();
+        const list = document.getElementById('imageList');
+        list.innerHTML = ""; 
+        selected = [];
+        
+        if (!data.features || data.features.length === 0) {
+            s.innerText = "Aucune image sans nuages trouvée.";
+            return;
+        }
+
+        document.getElementById('results').style.display = "block";
+        data.features.forEach(item => {
+            const d = item.properties.datetime.split('T')[0];
+            const div = document.createElement('div');
+            div.className = 'img-item';
+            div.innerHTML = `📅 ${d} (☁️ ${Math.round(item.properties["eo:cloud_cover"])}%)`;
+            div.onclick = () => {
+                div.classList.toggle('active');
+                const idx = selected.findIndex(s => s.date === d);
+                if(idx > -1) selected.splice(idx, 1);
+                else if(selected.length < 2) selected.push({date: d, bbox, b, token});
+                document.getElementById('compareBtn').style.display = selected.length > 0 ? "block" : "none";
+            };
+            list.appendChild(div);
+        });
+        s.innerText = data.features.length + " images trouvées.";
+    } catch (e) {
+        console.error(e);
+        s.innerText = "Erreur réseau.";
+    }
+};
 
     async function getToken() {
         // Tentative d'authentification propre
