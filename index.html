@@ -2,261 +2,178 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Analyse NDVI Tunisie - GitHub Pro</title>
+    <title>NDVI Tunisie - Version Finale</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/shapefile@0.6.6/dist/shapefile.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script> 
+    <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
 
     <style>
-        :root { --green: #2e7d32; --blue: #1565c0; --bg: #f4f7f6; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); }
-        
-        #sidebar { width: 400px; padding: 25px; background: white; border-right: 1px solid #ddd; overflow-y: auto; z-index: 1000; box-shadow: 4px 0 10px rgba(0,0,0,0.05); }
+        :root { --primary: #2e7d32; --secondary: #1565c0; }
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background: #f4f4f4; }
+        #sidebar { width: 380px; padding: 20px; background: white; border-right: 1px solid #ccc; overflow-y: auto; z-index: 1000; }
         #map { flex-grow: 1; }
-
-        h2 { color: var(--green); margin-top: 0; border-bottom: 2px solid var(--green); padding-bottom: 10px; font-size: 1.4em; }
-        .card { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        
-        label { display: block; font-weight: bold; margin-bottom: 10px; font-size: 0.9em; color: #555; }
-        input[type="file"], select, input[type="date"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 5px; }
-        
-        button { width: 100%; padding: 12px; background: var(--green); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; transition: 0.3s; }
-        button:hover { background: #1b5e20; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-
-        .status { padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 0.85em; display: none; }
-        .status.ok { background: #e8f5e9; color: #2e7d32; display: block; border: 1px solid #c8e6c9; }
-        .status.err { background: #ffebee; color: #c62828; display: block; border: 1px solid #ffcdd2; }
-
-        .img-item { padding: 12px; border: 1px solid #eee; margin-top: 8px; border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
-        .img-item:hover { border-color: var(--blue); background: #f0f7ff; }
-        .img-item.active { border-color: var(--blue); background: #e3f2fd; border-left: 5px solid var(--blue); }
-        
-        .legend { font-size: 0.8em; margin-top: 10px; display: flex; gap: 10px; }
-        .leg-item { display: flex; align-items: center; gap: 5px; }
-        .box { width: 12px; height: 12px; border-radius: 2px; }
+        .card { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        button { width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; }
+        .status { padding: 10px; margin-top: 10px; border-radius: 4px; display: none; font-size: 0.9em; }
+        .img-item { border: 1px solid #eee; padding: 10px; margin-top: 5px; cursor: pointer; border-radius: 4px; font-size: 0.9em; }
+        .img-item.active { border-color: var(--secondary); background: #e3f2fd; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>Explorateur NDVI</h2>
-    
+    <h3>Explorateur NDVI</h3>
     <div class="card">
-        <label>1. Fichier Shapefile (.ZIP)</label>
+        <label>Shapefile (ZIP)</label>
         <input type="file" id="fileInput" accept=".zip">
     </div>
-
     <div class="card">
-        <label>2. Zone à analyser</label>
-        <select id="regionSelect" disabled><option>Chargez un fichier ZIP...</option></select>
+        <label>Gouvernorat</label>
+        <select id="regionSelect" disabled><option>Charger un ZIP...</option></select>
     </div>
-
     <div class="card">
-        <label>3. Période & Recherche</label>
-        <div style="display:flex; gap:5px;">
-            <input type="date" id="dateStart" value="2025-01-01">
-            <input type="date" id="dateEnd" value="2026-03-16">
-        </div>
-        <button id="searchBtn" disabled>Trouver des images</button>
-        <div id="statusMsg" class="status"></div>
+        <label>Dates</label>
+        <input type="date" id="dateStart" value="2025-01-01">
+        <input type="date" id="dateEnd" value="2026-03-16">
+        <button id="searchBtn" style="margin-top:10px" disabled>Trouver des images</button>
+        <div id="status" class="status"></div>
     </div>
-
-    <div id="resultsCard" class="card" style="display:none;">
-        <label>4. Comparaison (Sélectionnez 2 dates)</label>
+    <div id="results" class="card" style="display:none">
+        <label>Sélectionnez 2 dates :</label>
         <div id="imageList"></div>
-        <button id="compareBtn" style="background:var(--blue); display:none; margin-top:15px;">Comparer les périodes</button>
-        
-        <div class="legend">
-            <div class="leg-item"><div class="box" style="background:#cc1a1a"></div> Sol nu</div>
-            <div class="leg-item"><div class="box" style="background:#e6e633"></div> Moyen</div>
-            <div class="leg-item"><div class="box" style="background:#1a801a"></div> Dense</div>
-        </div>
+        <button id="compareBtn" style="display:none; background:var(--secondary); margin-top:10px">Lancer la comparaison</button>
     </div>
 </div>
-
 <div id="map"></div>
 
 <script>
-    // Identifiants mis à jour (Nouveau client)
     const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
-    const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh";
+    const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh"; // <--- METTEZ VOTRE SECRET ICI
 
     const map = L.map('map').setView([34, 9], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    
-    let geoJSONData = null, highlightGroup = L.layerGroup().addTo(map);
-    let leftLayer, rightLayer, swipeControl, selectedDates = [];
+    let geoData, highlight = L.layerGroup().addTo(map);
+    let layerL, layerR, slider, selected = [];
 
-    // Projection UTM 32N (Tunisie)
     proj4.defs("EPSG:32632", "+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs");
 
-    function log(msg, type) {
-        const div = document.getElementById('statusMsg');
-        div.innerText = msg;
-        div.className = "status " + (type === 'err' ? 'err' : 'ok');
-    }
-
-    // Chargement du Shapefile
     document.getElementById('fileInput').onchange = async (e) => {
-        try {
-            const zip = await JSZip.loadAsync(e.target.files[0]);
-            const shp = await zip.file(/\.shp$/i)[0].async("arraybuffer");
-            const dbf = await zip.file(/\.dbf$/i)[0].async("arraybuffer");
-            
-            shapefile.read(shp, dbf).then(data => {
-                data.features.forEach(f => {
-                    const tr = (c) => proj4("EPSG:32632", "WGS84", c);
-                    if (f.geometry.type === "Polygon") f.geometry.coordinates = f.geometry.coordinates.map(r => r.map(tr));
-                    else f.geometry.coordinates = f.geometry.coordinates.map(p => p.map(r => r.map(tr)));
-                });
-                geoJSONData = data;
-                const select = document.getElementById('regionSelect');
-                select.innerHTML = '<option value="">-- Choisir la zone --</option>';
-                data.features.forEach((f, i) => {
-                    const name = f.properties.nm_gouv_fr || f.properties.NAME || `Zone ${i+1}`;
-                    select.add(new Option(name, i));
-                });
-                select.disabled = false;
-                document.getElementById('searchBtn').disabled = false;
-                log("Fichier chargé. Choisissez une zone.", "ok");
+        const zip = await JSZip.loadAsync(e.target.files[0]);
+        const shp = await zip.file(/\.shp$/i)[0].async("arraybuffer");
+        const dbf = await zip.file(/\.dbf$/i)[0].async("arraybuffer");
+        shapefile.read(shp, dbf).then(data => {
+            data.features.forEach(f => {
+                const tr = (c) => proj4("EPSG:32632", "WGS84", c);
+                if (f.geometry.type === "Polygon") f.geometry.coordinates = f.geometry.coordinates.map(r => r.map(tr));
+                else f.geometry.coordinates = f.geometry.coordinates.map(p => p.map(r => r.map(tr)));
             });
-        } catch(err) { log("Erreur : Fichier ZIP non valide.", "err"); }
+            geoData = data;
+            const sel = document.getElementById('regionSelect');
+            sel.innerHTML = '<option value="">-- Sélectionner --</option>';
+            data.features.forEach((f, i) => sel.add(new Option(f.properties.nm_gouv_fr || `Zone ${i+1}`, i)));
+            sel.disabled = false; document.getElementById('searchBtn').disabled = false;
+        });
     };
 
     document.getElementById('regionSelect').onchange = (e) => {
-        if(!e.target.value) return;
-        const feat = geoJSONData.features[e.target.value];
-        highlightGroup.clearLayers();
-        const layer = L.geoJSON(feat, {style:{color: '#2e7d32', weight: 2, fillOpacity: 0.1}}).addTo(highlightGroup);
-        map.fitBounds(layer.getBounds());
+        highlight.clearLayers();
+        const l = L.geoJSON(geoData.features[e.target.value], {style:{color:'#2e7d32', weight:2}}).addTo(highlight);
+        map.fitBounds(l.getBounds());
     };
 
-    // Authentification Sentinel Hub
-   async function getToken() {
-    const url = 'https://services.sentinel-hub.com/oauth/token';
-    const params = new URLSearchParams();
-    params.append('grant_type', 'client_credentials');
-    params.append('client_id', '30990e8b-02bc-4a14-b1e3-7a1ec0fcb6f8');
-    params.append('client_secret', 'VOTRE_NOUVEAU_SECRET_ICI'); // <--- METTEZ LE NOUVEAU ICI
+    async function getToken() {
+        // Tentative d'authentification propre
+        try {
+            const body = new URLSearchParams();
+            body.append('grant_type', 'client_credentials');
+            body.append('client_id', CLIENT_ID);
+            body.append('client_secret', CLIENT_SECRET);
 
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: params.toString(),
-            credentials: 'omit' // Très important pour GitHub Pages
-        });
-
-        if (!response.ok) {
-            const errBody = await response.text();
-            console.error("Erreur Sentinel Hub:", response.status, errBody);
-            return null;
-        }
-
-        const data = await response.json();
-        return data.access_token;
-    } catch (e) {
-        console.error("Erreur réseau fatale:", e);
+            const r = await fetch('https://services.sentinel-hub.com/oauth/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body.toString()
+            });
+            if (r.ok) return (await r.json()).access_token;
+        } catch (e) { console.error(e); }
         return null;
     }
-}
 
     document.getElementById('searchBtn').onclick = async () => {
-        log("Connexion à Sentinel Hub...", "ok");
+        const s = document.getElementById('status');
+        s.style.display = "block"; s.innerText = "Connexion...";
         const token = await getToken();
-        if (!token) { log("Erreur : Impossible de s'authentifier.", "err"); return; }
+        if(!token) { s.innerText = "Erreur d'accès API (401/CORS)"; return; }
 
-        try {
-            const feat = geoJSONData.features[document.getElementById('regionSelect').value];
-            const bounds = L.geoJSON(feat).getBounds();
-            const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+        const f = geoData.features[document.getElementById('regionSelect').value];
+        const b = L.geoJSON(f).getBounds();
+        const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
 
-            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    "bbox": bbox,
-                    "datetime": `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
-                    "collections": ["sentinel-2-l2a"],
-                    "limit": 12,
-                    "query": { "eo:cloud_cover": { "lt": 30 } }
-                })
-            });
+        const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
+            method: 'POST',
+            headers: {'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                "bbox": bbox,
+                "datetime": `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
+                "collections": ["sentinel-2-l2a"],
+                "limit": 10,
+                "query": {"eo:cloud_cover": {"lt": 30}}
+            })
+        });
 
-            const data = await res.json();
-            const list = document.getElementById('imageList');
-            list.innerHTML = "";
-            selectedDates = [];
-            document.getElementById('resultsCard').style.display = "block";
-
-            data.features.forEach(item => {
-                const dateStr = item.properties.datetime.split('T')[0];
-                const div = document.createElement('div');
-                div.className = 'img-item';
-                div.innerHTML = `<span>📅 ${dateStr}</span> <small>☁️ ${Math.round(item.properties["eo:cloud_cover"])}%</small>`;
-                div.onclick = () => {
-                    const idx = selectedDates.findIndex(s => s.date === dateStr);
-                    if (idx > -1) {
-                        selectedDates.splice(idx, 1);
-                        div.classList.remove('active');
-                    } else if (selectedDates.length < 2) {
-                        selectedDates.push({ date: dateStr, bbox, bounds, token });
-                        div.classList.add('active');
-                    }
-                    document.getElementById('compareBtn').style.display = selectedDates.length > 0 ? "block" : "none";
-                };
-                list.appendChild(div);
-            });
-            log("Images trouvées. Sélectionnez-en deux.", "ok");
-        } catch (e) { log("Erreur de recherche catalogue.", "err"); }
+        const data = await res.json();
+        const list = document.getElementById('imageList');
+        list.innerHTML = ""; selected = [];
+        document.getElementById('results').style.display = "block";
+        data.features.forEach(item => {
+            const d = item.properties.datetime.split('T')[0];
+            const div = document.createElement('div');
+            div.className = 'img-item';
+            div.innerHTML = `📅 ${d} (${Math.round(item.properties["eo:cloud_cover"])}% nuages)`;
+            div.onclick = () => {
+                div.classList.toggle('active');
+                const idx = selected.findIndex(s => s.date === d);
+                if(idx > -1) selected.splice(idx, 1);
+                else if(selected.length < 2) selected.push({date: d, bbox, b, token});
+                document.getElementById('compareBtn').style.display = selected.length > 0 ? "block" : "none";
+            };
+            list.appendChild(div);
+        });
+        s.innerText = "Images trouvées.";
     };
 
     document.getElementById('compareBtn').onclick = async () => {
-        if (leftLayer) map.removeLayer(leftLayer);
-        if (rightLayer) map.removeLayer(rightLayer);
-        if (swipeControl) map.removeControl(swipeControl);
-
-        log("Calcul NDVI...", "ok");
-        leftLayer = await getNDVILayer(selectedDates[0]);
-        leftLayer.addTo(map);
-
-        if (selectedDates[1]) {
-            rightLayer = await getNDVILayer(selectedDates[1]);
-            rightLayer.addTo(map);
-            swipeControl = L.control.sideBySide(leftLayer, rightLayer).addTo(map);
-            log("Utilisez le curseur central pour comparer.", "ok");
+        if(layerL) map.removeLayer(layerL); if(layerR) map.removeLayer(layerR); if(slider) map.removeControl(slider);
+        layerL = await getNDVI(selected[0]); layerL.addTo(map);
+        if(selected[1]) {
+            layerR = await getNDVI(selected[1]); layerR.addTo(map);
+            slider = L.control.sideBySide(layerL, layerR).addTo(map);
         }
     };
 
-    async function getNDVILayer(img) {
-        const evalscript = `//VERSION=3
-            function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
-            function evaluate(s) {
-                let v = (s.B08 - s.B04) / (s.B08 + s.B04);
-                if (s.dataMask == 0) return [0,0,0,0];
-                return v < 0.2 ? [0.8, 0.1, 0.1, 1] : v < 0.4 ? [0.9, 0.9, 0.2, 1] : [0.1, 0.5, 0.1, 1];
-            }`;
-
+    async function getNDVI(img) {
+        const es = `//VERSION=3
+        function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
+        function evaluate(s) {
+            let v = (s.B08 - s.B04) / (s.B08 + s.B04);
+            if (s.dataMask == 0) return [0,0,0,0];
+            return v < 0.2 ? [0.8, 0.1, 0.1, 1] : v < 0.4 ? [0.9, 0.9, 0.2, 1] : [0.1, 0.5, 0.1, 1];
+        }`;
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${img.token}`, 'Content-Type': 'application/json' },
+            headers: {'Authorization': `Bearer ${img.token}`, 'Content-Type': 'application/json'},
             body: JSON.stringify({
-                input: {
-                    bounds: { bbox: img.bbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } },
-                    data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: img.date + "T00:00:00Z", to: img.date + "T23:59:59Z" } } }]
-                },
+                input: { bounds: { bbox: img.bbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } },
+                data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: img.date+"T00:00:00Z", to: img.date+"T23:59:59Z" } } }] },
                 output: { responses: [{ format: { type: "image/png" } }] },
-                evalscript: evalscript
+                evalscript: es
             })
         });
-        const blob = await r.blob();
-        return L.imageOverlay(URL.createObjectURL(blob), img.bounds);
+        return L.imageOverlay(URL.createObjectURL(await r.blob()), img.b);
     }
 </script>
 </body>
