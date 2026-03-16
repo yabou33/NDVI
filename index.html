@@ -2,37 +2,34 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Explorateur NDVI - Cap Bon</title>
+    <title>Analyse NDVI - Cap Bon</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; margin: 0; background: #f4f7f6; }
-        #sidebar { width: 380px; padding: 25px; background: white; border-right: 1px solid #ddd; z-index: 1000; box-shadow: 4px 0 10px rgba(0,0,0,0.05); overflow-y: auto; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #f4f7f6; }
+        #sidebar { width: 380px; padding: 25px; background: white; border-right: 1px solid #ddd; z-index: 1000; box-shadow: 4px 0 10px rgba(0,0,0,0.05); }
         #map { flex-grow: 1; }
-        h2 { color: #2e7d32; margin-top: 0; border-bottom: 2px solid #e8f5e9; padding-bottom: 10px; }
         .card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px; margin-bottom: 20px; background: #fff; }
-        button { width: 100%; padding: 14px; background: #2e7d32; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.3s; }
+        button { width: 100%; padding: 14px; background: #2e7d32; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
         button:hover { background: #1b5e20; }
-        #status { font-size: 0.9em; margin-top: 12px; padding: 10px; border-radius: 4px; background: #f8f9fa; color: #555; display: none; }
-        .img-item { border: 1px solid #ddd; padding: 12px; margin-top: 10px; cursor: pointer; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s; }
-        .img-item:hover { background: #f1f8e9; border-color: #2e7d32; }
-        .img-item.active { border-color: #1565c0; background: #e3f2fd; box-shadow: inset 0 0 0 2px #1565c0; }
-        .cloud-badge { font-size: 0.8em; background: #eee; padding: 2px 6px; border-radius: 10px; color: #666; }
+        #status { font-size: 0.9em; margin-top: 12px; padding: 10px; border-radius: 4px; background: #fff3e0; color: #e65100; display: none; border: 1px solid #ffe0b2; }
+        .img-item { border: 1px solid #ddd; padding: 12px; margin-top: 10px; cursor: pointer; border-radius: 6px; display: flex; justify-content: space-between; transition: 0.2s; }
+        .img-item.active { border-color: #1565c0; background: #e3f2fd; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>Explorateur NDVI</h2>
+    <h2>Analyse Cap Bon</h2>
     <div class="card">
-        <p><strong>Zone de test :</strong> Nabeul (Cap Bon)</p>
+        <p><strong>Zone :</strong> Nabeul (Test Direct)</p>
         <button id="searchBtn">Trouver des images</button>
-        <div id="status">Prêt.</div>
+        <div id="status"></div>
     </div>
 
     <div id="results" class="card" style="display:none">
-        <label style="font-weight:bold; color: #333;">Sélectionnez 1 ou 2 images :</label>
-        <div id="imageList" style="margin-top:15px;"></div>
-        <button id="compareBtn" style="background:#1565c0; display:none; margin-top:20px;">Lancer l'analyse NDVI</button>
+        <label style="font-weight:bold;">Images disponibles :</label>
+        <div id="imageList" style="margin-top:10px;"></div>
+        <button id="compareBtn" style="background:#1565c0; display:none; margin-top:20px;">Afficher NDVI</button>
     </div>
 </div>
 
@@ -42,61 +39,58 @@
 <script src="https://cdn.jsdelivr.net/gh/digidem/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
 
 <script>
-    // CONFIGURATION IDENTIFIANTS
-     const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
+    // 1. VERIFIEZ CES DEUX LIGNES AVEC VOTRE CAPTURE D'ECRAN
+  const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
     const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh"; 
-    // ZONE DE NABEUL (ORDRE : OUEST, SUD, EST, NORD)
+
     const bboxNabeul = [10.861176, 36.755022, 10.874609, 36.769634];
     const boundsNabeul = L.latLngBounds([36.755022, 10.861176], [36.769634, 10.874609]);
 
-    // INITIALISATION CARTE
     const map = L.map('map').setView([36.762, 10.867], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
-    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     L.rectangle(boundsNabeul, {color: "#2e7d32", weight: 2, fillOpacity: 0.1}).addTo(map);
 
     let layerL, layerR, slider, selected = [];
 
-    // FONCTION D'AUTHENTIFICATION
+    // FONCTION AUTH CORRIGÉE (Supprime l'erreur 401)
     async function getToken() {
+        const status = document.getElementById('status');
         try {
-            const params = new URLSearchParams();
-            params.append('grant_type', 'client_credentials');
-            params.append('client_id', CLIENT_ID);
-            params.append('client_secret', CLIENT_SECRET);
-
             const response = await fetch('https://services.sentinel-hub.com/oauth/token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: params
+                body: new URLSearchParams({
+                    'grant_type': 'client_credentials',
+                    'client_id': CLIENT_ID,
+                    'client_secret': CLIENT_SECRET
+                })
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                return data.access_token;
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("Détail Erreur Auth:", errorData);
+                return null;
             }
-            console.error("Auth Fail:", await response.text());
-            return null;
+            const data = await response.json();
+            return data.access_token;
         } catch (e) {
+            console.error("Erreur réseau Auth:", e);
             return null;
         }
     }
 
-    // ACTION : RECHERCHE D'IMAGES
     document.getElementById('searchBtn').onclick = async function() {
         const status = document.getElementById('status');
         status.style.display = "block";
-        status.innerText = "Connexion en cours...";
+        status.innerText = "Vérification des accès...";
         
         const token = await getToken();
         if(!token) {
-            status.innerText = "Erreur : Authentification échouée.";
+            status.innerText = "Erreur 401 : Identifiants rejetés. Vérifiez votre Client Secret.";
             return;
         }
 
-        status.innerText = "Recherche d'images satellites...";
+        status.innerText = "Recherche en cours...";
         try {
             const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
                 method: 'POST',
@@ -114,9 +108,7 @@
             });
 
             if (!res.ok) {
-                const err = await res.json();
-                console.error("Catalog Error:", err);
-                status.innerText = "Erreur 400 : Paramètres de recherche.";
+                status.innerText = "Erreur 400 : Problème de paramètres.";
                 return;
             }
 
@@ -125,47 +117,34 @@
             list.innerHTML = "";
             selected = [];
 
-            if (!data.features || data.features.length === 0) {
-                status.innerText = "Aucune image sans nuages trouvée.";
+            if (data.features.length === 0) {
+                status.innerText = "Aucune image trouvée.";
                 return;
             }
 
             document.getElementById('results').style.display = "block";
             data.features.forEach(item => {
                 const date = item.properties.datetime.split('T')[0];
-                const clouds = Math.round(item.properties["eo:cloud_cover"]);
-                
                 const div = document.createElement('div');
                 div.className = 'img-item';
-                div.innerHTML = `<span>📅 ${date}</span> <span class="cloud-badge">☁️ ${clouds}%</span>`;
-                
+                div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${Math.round(item.properties["eo:cloud_cover"])}%</span>`;
                 div.onclick = () => {
                     const idx = selected.findIndex(s => s.date === date);
-                    if(idx > -1) {
-                        selected.splice(idx, 1);
-                        div.classList.remove('active');
-                    } else if(selected.length < 2) {
-                        selected.push({date, token});
-                        div.classList.add('active');
-                    }
+                    if(idx > -1) { selected.splice(idx, 1); div.classList.remove('active'); }
+                    else if(selected.length < 2) { selected.push({date, token}); div.classList.add('active'); }
                     document.getElementById('compareBtn').style.display = selected.length > 0 ? "block" : "none";
                 };
                 list.appendChild(div);
             });
-            status.innerText = data.features.length + " images prêtes.";
+            status.innerText = "Images trouvées ! Sélectionnez-en une.";
         } catch (e) {
-            status.innerText = "Erreur réseau.";
+            status.innerText = "Erreur de connexion.";
         }
     };
 
-    // ACTION : CALCUL ET AFFICHAGE NDVI
     document.getElementById('compareBtn').onclick = async function() {
-        const status = document.getElementById('status');
-        status.innerText = "Calcul du NDVI...";
-        
-        if(layerL) map.removeLayer(layerL);
-        if(layerR) map.removeLayer(layerR);
-        if(slider) map.removeControl(slider);
+        document.getElementById('status').innerText = "Génération du rendu...";
+        if(layerL) map.removeLayer(layerL); if(layerR) map.removeLayer(layerR); if(slider) map.removeControl(slider);
 
         layerL = await getNDVILayer(selected[0]);
         layerL.addTo(map);
@@ -174,52 +153,34 @@
             layerR = await getNDVILayer(selected[1]);
             layerR.addTo(map);
             slider = L.control.sideBySide(layerL, layerR).addTo(map);
-            status.innerText = "Analyse comparative prête.";
-        } else {
-            status.innerText = "Analyse simple prête.";
         }
+        document.getElementById('status').innerText = "Analyse terminée.";
     };
 
     async function getNDVILayer(img) {
-        const evalscript = `//VERSION=3
-        function setup() {
-            return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } };
-        }
-        function evaluate(samples) {
-            let ndvi = (samples.B08 - samples.B04) / (samples.B08 + samples.B04);
-            if (samples.dataMask == 0) return [0, 0, 0, 0];
-            // Palette : Rouge (faible), Jaune (moyen), Vert (fort)
-            if (ndvi < 0.2) return [0.8, 0.1, 0.1, 1];
-            if (ndvi < 0.5) return [0.9, 0.9, 0.2, 1];
-            return [0.1, 0.5, 0.1, 1];
+        const es = `//VERSION=3
+        function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
+        function evaluate(s) {
+            let v = (s.B08 - s.B04) / (s.B08 + s.B04);
+            if (s.dataMask == 0) return [0,0,0,0];
+            return v < 0.2 ? [0.8, 0.1, 0.1, 1] : v < 0.4 ? [0.9, 0.9, 0.2, 1] : [0.1, 0.5, 0.1, 1];
         }`;
 
-        const response = await fetch('https://services.sentinel-hub.com/api/v1/process', {
+        const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${img.token}`,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Authorization': `Bearer ${img.token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 input: {
-                    bounds: { 
-                        bbox: bboxNabeul,
-                        properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
-                    },
-                    data: [{
-                        type: "sentinel-2-l2a",
-                        dataFilter: { timeRange: { from: img.date + "T00:00:00Z", to: img.date + "T23:59:59Z" } }
-                    }]
+                    bounds: { bbox: bboxNabeul, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } },
+                    data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: img.date+"T00:00:00Z", to: img.date+"T23:59:59Z" } } }]
                 },
                 output: { responses: [{ format: { type: "image/png" } }] },
-                evalscript: evalscript
+                evalscript: es
             })
         });
-
-        const imageBlob = await response.blob();
-        return L.imageOverlay(URL.createObjectURL(imageBlob), boundsNabeul);
+        const blob = await r.blob();
+        return L.imageOverlay(URL.createObjectURL(blob), boundsNabeul);
     }
 </script>
-
 </body>
 </html>
