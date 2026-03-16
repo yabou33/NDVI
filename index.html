@@ -420,9 +420,10 @@ function evaluatePixel(s) {
     let cachedToken = null, tokenExpiry = 0;
 
     // Infobulle — state
-    let tooltipActive   = false;   // true seulement quand une image est visible sur la parcelle
-    let ndviLayerCanvas = null;    // canvas offscreen pour lire les pixels NDVI
-    let ndviBounds      = null;    // bounds de ce canvas
+    let tooltipActive   = false;
+    let ndviLayerCanvas = null;
+    let ndviBounds      = null;
+    const tooltip = document.getElementById('ndvi-tooltip');
 
     /* ═══════════════════════════════════════════════════════
        RÉGION
@@ -444,13 +445,36 @@ function evaluatePixel(s) {
         drawnItems.addLayer(e.layer);
         selectedGeom  = e.layer.toGeoJSON().geometry;
         currentBounds = e.layer.getBounds();
-        currentBbox   = [currentBounds.getWest(),currentBounds.getSouth(),
-                         currentBounds.getEast(),currentBounds.getNorth()];
+        currentBbox   = [currentBounds.getWest(), currentBounds.getSouth(),
+                         currentBounds.getEast(), currentBounds.getNorth()];
+        // Masquer le rectangle de région par défaut quand une parcelle est dessinée
+        if (window.areaRect) { window.areaRect.setStyle({ opacity:0, fillOpacity:0 }); }
         try {
             const pts = e.layer.getLatLngs()[0];
-            totalAreaHa = (L.GeometryUtil.geodesicArea(pts)/10000).toFixed(2);
+            totalAreaHa = (L.GeometryUtil.geodesicArea(pts) / 10000).toFixed(2);
         } catch { totalAreaHa = '—'; }
         showAreaDisplay();
+        disableTooltip();
+    });
+
+    // Quand une forme est éditée, mettre à jour les bounds
+    map.on(L.Draw.Event.EDITED, e => {
+        e.layers.eachLayer(layer => {
+            selectedGeom  = layer.toGeoJSON().geometry;
+            currentBounds = layer.getBounds();
+            currentBbox   = [currentBounds.getWest(), currentBounds.getSouth(),
+                             currentBounds.getEast(), currentBounds.getNorth()];
+        });
+        disableTooltip();
+    });
+
+    // Quand une forme est supprimée, revenir à la région
+    map.on(L.Draw.Event.DELETED, () => {
+        selectedGeom = null;
+        currentBbox   = JSON.parse(document.getElementById('regionSelect').value);
+        currentBounds = L.latLngBounds([currentBbox[1],currentBbox[0]],[currentBbox[3],currentBbox[2]]);
+        if (window.areaRect) { window.areaRect.setStyle({ opacity:1, fillOpacity:.06 }); }
+        document.getElementById('areaDisplay').style.display = 'none';
         disableTooltip();
     });
 
