@@ -2,65 +2,88 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Explorateur NDVI Tunisie — Précision</title>
+    <title>Explorateur NDVI Tunisie — Complet</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; }
-        #sidebar { width: 360px; min-width: 360px; padding: 16px; background: white; border-right: 1px solid #ddd; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 8px rgba(0,0,0,.07); }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #f5f5f5; }
+        #sidebar { width: 360px; min-width: 360px; padding: 16px; background: white; border-right: 1px solid #ddd; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 8px rgba(0,0,0,.1); }
         #map { flex-grow: 1; }
-        .card { border: 1px solid #e0e0e0; padding: 13px; border-radius: 8px; margin-bottom: 13px; }
+        .card { border: 1px solid #e0e0e0; padding: 13px; border-radius: 8px; margin-bottom: 13px; background: #fff; }
         h2 { color: #2e7d32; font-size: 1.25em; margin: 0 0 13px; }
         small-label { display: block; font-size: .78em; color: #555; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; margin-bottom: 3px; }
         select, input[type=date] { width: 100%; padding: 8px; margin-top: 4px; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; box-sizing: border-box; }
+        
+        .range-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; color: #555; }
+        input[type=range] { width: 100%; margin-top: 3px; cursor: pointer; }
+        
         .btn { width: 100%; padding: 10px; margin-top: 7px; border-radius: 5px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; color: white; transition: background .2s; }
-        .g { background: #2e7d32; } .b { background: #1565c0; } .d { background: #546e7a; }
+        .g { background: #2e7d32; } .g:hover { background: #1b5e20; }
+        .b { background: #1565c0; } .b:hover { background: #0d47a1; }
+        .d { background: #546e7a; } .d:hover { background: #37474f; }
+        
         #status { margin-top: 8px; font-size: .82em; padding: 7px 10px; border-radius: 4px; display: none; }
         .err { background: #fdecea; color: #c62828; display: block !important; }
         .ok { background: #e8f5e9; color: #2e7d32; display: block !important; }
         .info { background: #e3f2fd; color: #1565c0; display: block !important; }
+        
         .img-item { border: 1px solid #ddd; padding: 8px 11px; margin-top: 5px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; font-size: 12.5px; }
-        .img-item.active { border-color: #1976d2; background: #e3f2fd; font-weight: 700; }
+        .img-item.active { border-color: #1976d2; background: #e3f2fd; color: #1565c0; font-weight: 700; }
         .legend { margin-top: 10px; font-size: .8em; }
         .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
         .dot { width: 12px; height: 12px; border-radius: 2px; }
-        /* Style spécial pour l'info de dessin */
-        .draw-info { background: #fff8e1; border: 1px solid #ffcc80; padding: 8px; font-size: 0.85em; border-radius: 5px; margin-bottom: 10px; }
+        .spin { display:inline-block;width:11px;height:11px;border:2px solid #aaa;border-top-color:#1565c0;border-radius:50%;animation:sp .7s linear infinite;margin-right:4px;}
+        @keyframes sp{to{transform:rotate(360deg)}}
     </style>
 </head>
 <body>
 <div id="sidebar">
-    <h2>🌿 NDVI Précision</h2>
+    <h2>🌿 Analyse de Précision</h2>
 
-    <div class="draw-info">
-        <strong>📍 Mode Parcelle :</strong> Utilisez les outils à droite sur la carte pour dessiner votre champ (polygone ou carré).
+    <div class="card" style="background: #fff8e1; border-color: #ffe082;">
+        <small-label style="color: #f57c00;">Mode Dessin</small-label>
+        <div id="areaInfo" style="font-size: 12px; color: #6d4c41;">Dessinez une parcelle sur la carte pour isoler l'analyse.</div>
     </div>
 
     <div class="card">
-        <small-label>Région (par défaut)</small-label>
+        <small-label>Gouvernorat</small-label>
         <select id="regionSelect">
             <option value="[10.83,36.72,10.90,36.80]">Nabeul (Cap Bon)</option>
             <option value="[10.12,36.82,10.22,36.95]">Ariana</option>
             <option value="[9.15,36.65,9.30,36.80]">Béja</option>
             <option value="[10.55,35.78,10.68,35.88]">Sousse</option>
+            <option value="[10.60,34.70,10.80,34.85]">Sfax</option>
+            <option value="[8.75,36.45,8.95,36.55]">Jendouba</option>
         </select>
     </div>
 
     <div class="card">
-        <small-label>Période</small-label>
+        <small-label>Filtres & Période</small-label>
         <input type="date" id="dateDebut" value="2025-01-01">
         <input type="date" id="dateFin"   value="2026-03-16" style="margin-top:5px;">
+
+        <div class="range-row">
+            <span>Nuages max :</span><strong id="cloudLabel">30%</strong>
+        </div>
+        <input type="range" id="cloudRange" min="0" max="100" value="30" step="5" oninput="document.getElementById('cloudLabel').textContent=this.value+'%'">
+
+        <div class="range-row">
+            <span>Images max :</span><strong id="limitLabel">20</strong>
+        </div>
+        <input type="range" id="limitRange" min="5" max="100" value="20" step="5" oninput="document.getElementById('limitLabel').textContent=this.value">
+
         <button class="btn g" id="searchBtn" style="margin-top:11px;">🔍 Rechercher des Images</button>
         <div id="status"></div>
     </div>
 
     <div id="resultsCard" class="card" style="display:none">
-        <small-label>Images disponibles</small-label>
+        <small-label>Sélection (1 ou 2 images)</small-label>
         <div id="imageList"></div>
-        <button class="btn b" id="compareBtn" style="display:none;margin-top:11px;">📊 Générer NDVI</button>
+        <button class="btn b" id="compareBtn" style="display:none;margin-top:11px;">📊 Lancer l'Analyse NDVI</button>
         <button class="btn d" id="downloadBtn" style="display:none;margin-top:6px;">⬇️ Télécharger (.png)</button>
         
         <div class="legend" id="legend" style="display:none">
+            <strong>Légende :</strong>
             <div class="legend-row"><div class="dot" style="background:#cc2200"></div> Sol nu</div>
             <div class="legend-row"><div class="dot" style="background:#1a7a1a"></div> Végétation dense</div>
         </div>
@@ -83,39 +106,28 @@
     const map = L.map('map').setView([36.8, 10.2], 8);
     L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { attribution: 'Google Satellite' }).addTo(map);
 
-    let layerL = null, layerR = null, slider = null;
-    let selected = [], currentBbox, currentBounds;
+    let layerL = null, layerR = null, slider = null, selected = [], currentBbox, currentBounds, selectedGeom = null;
     let drawnItems = new L.FeatureGroup().addTo(map);
-    let selectedGeometry = null;
 
-    // --- Configuration Leaflet Draw ---
-    const drawControl = new L.Control.Draw({
+    // Initialisation du dessin
+    map.addControl(new L.Control.Draw({
         edit: { featureGroup: drawnItems },
-        draw: {
-            polygon: { allowIntersection: false, showArea: true },
-            rectangle: true,
-            polyline: false, circle: false, marker: false, circlemarker: false
-        }
-    });
-    map.addControl(drawControl);
+        draw: { polygon: true, rectangle: true, polyline: false, circle: false, marker: false, circlemarker: false }
+    }));
 
     map.on(L.Draw.Event.CREATED, function (e) {
         drawnItems.clearLayers();
         const layer = e.layer;
         drawnItems.addLayer(layer);
+        selectedGeom = layer.toGeoJSON().geometry;
+        currentBounds = layer.getBounds();
+        currentBbox = [currentBounds.getWest(), currentBounds.getSouth(), currentBounds.getEast(), currentBounds.getNorth()];
         
-        // On récupère la géométrie pour Sentinel Hub
-        selectedGeometry = layer.toGeoJSON().geometry;
-        
-        // On met à jour le BBOX basé sur le dessin
-        const bounds = layer.getBounds();
-        currentBbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
-        currentBounds = bounds;
-        
-        setStatus("📍 Parcelle définie. Prêt pour l'analyse.", "info");
+        // Calcul surface
+        const area = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 10000).toFixed(2);
+        document.getElementById('areaInfo').innerHTML = `📍 Parcelle : <strong>${area} ha</strong>`;
     });
 
-    // --- Fonctions existantes adaptées ---
     function setStatus(msg, cls) {
         const el = document.getElementById('status');
         el.className = cls; el.innerHTML = msg;
@@ -130,21 +142,23 @@
         return (await r.json()).access_token;
     }
 
-    function updateRegion() {
-        if (drawnItems.getLayers().length > 0) return; // Ne pas écraser si on a dessiné
-        currentBbox = JSON.parse(document.getElementById('regionSelect').value);
+    document.getElementById('regionSelect').onchange = function() {
+        if(drawnItems.getLayers().length > 0) return;
+        currentBbox = JSON.parse(this.value);
         currentBounds = L.latLngBounds([currentBbox[1], currentBbox[0]], [currentBbox[3], currentBbox[2]]);
         map.fitBounds(currentBounds);
-        selectedGeometry = null; 
-    }
-    document.getElementById('regionSelect').onchange = updateRegion;
-    updateRegion();
+        selectedGeom = null;
+    };
+    document.getElementById('regionSelect').onchange();
 
     document.getElementById('searchBtn').onclick = async function () {
         this.disabled = true;
-        setStatus('🔍 Recherche...', 'info');
+        setStatus('<span class="spin"></span>Recherche...', 'info');
         try {
             const token = await getToken();
+            const cloudMax = parseInt(document.getElementById('cloudRange').value);
+            const limitVal = parseInt(document.getElementById('limitRange').value);
+            
             const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -152,19 +166,22 @@
                     bbox: currentBbox,
                     datetime: `${document.getElementById('dateDebut').value}T00:00:00Z/${document.getElementById('dateFin').value}T23:59:59Z`,
                     collections: ["sentinel-2-l2a"],
-                    limit: 15
+                    limit: 100
                 })
             });
             const data = await res.json();
+            const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 100) < cloudMax).slice(0, limitVal);
+            
             const list = document.getElementById('imageList');
-            list.innerHTML = '';
-            document.getElementById('resultsCard').style.display = 'block';
+            list.innerHTML = ''; selected = [];
+            document.getElementById('resultsCard').style.display = filtered.length ? 'block' : 'none';
 
-            data.features.forEach(f => {
+            filtered.forEach(f => {
                 const date = f.properties.datetime.split('T')[0];
+                const clouds = Math.round(f.properties['eo:cloud_cover'] || 0);
                 const div = document.createElement('div');
                 div.className = 'img-item';
-                div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${Math.round(f.properties['eo:cloud_cover'])}%</span>`;
+                div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${clouds}%</span>`;
                 div.onclick = () => {
                     const idx = selected.findIndex(s => s.date === date);
                     if (idx > -1) { selected.splice(idx, 1); div.classList.remove('active'); }
@@ -173,14 +190,14 @@
                 };
                 list.appendChild(div);
             });
-            setStatus('✅ Images trouvées.', 'ok');
+            setStatus(`✅ ${filtered.length} images trouvées.`, 'ok');
         } catch (e) { setStatus('❌ ' + e.message, 'err'); }
         this.disabled = false;
     };
 
     document.getElementById('compareBtn').onclick = async function () {
         this.disabled = true;
-        setStatus('⌛ Génération NDVI...', 'info');
+        setStatus('<span class="spin"></span>Calcul NDVI...', 'info');
         if (layerL) map.removeLayer(layerL); if (layerR) map.removeLayer(layerR); if (slider) map.removeControl(slider);
 
         try {
@@ -194,8 +211,8 @@
             }
             document.getElementById('downloadBtn').style.display = 'block';
             document.getElementById('legend').style.display = 'block';
-            setStatus('✅ NDVI Prêt.', 'ok');
-        } catch (e) { setStatus('❌ ' + e.message, 'err'); }
+            setStatus('✅ NDVI affiché.', 'ok');
+        } catch (e) { setStatus('❌ Erreur de rendu.', 'err'); }
         this.disabled = false;
     };
 
@@ -206,35 +223,30 @@
             if (sample.dataMask === 0) return [0, 0, 0, 0];
             const ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 1e-10);
             if (ndvi < 0.1) return [0.8, 0.1, 0.1, 1];
-            if (ndvi < 0.3) return [0.9, 0.9, 0.1, 1];
+            if (ndvi < 0.35) return [0.87, 0.8, 0, 1];
             return [0.1, 0.5, 0.1, 1];
         }`;
 
-        // Construction dynamique de la zone (Geometry ou BBOX)
-        const boundsData = selectedGeometry ? { geometry: selectedGeometry } : { bbox: currentBbox };
+        const boundsData = selectedGeom ? { geometry: selectedGeom } : { bbox: currentBbox };
         boundsData.properties = { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" };
 
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                input: {
-                    bounds: boundsData,
-                    data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: `${date}T00:00:00Z`, to: `${date}T23:59:59Z` } } }]
-                },
+                input: { bounds: boundsData, data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: `${date}T00:00:00Z`, to: `${date}T23:59:59Z` } } }] },
                 output: { responses: [{ format: { type: "image/png" } }] },
                 evalscript
             })
         });
-
-        if (!r.ok) throw new Error("Erreur Process API");
-        const url = URL.createObjectURL(await r.blob());
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
         const layer = L.imageOverlay(url, currentBounds, { opacity: 0.9 });
         layer.options.downloadUrl = url;
         return layer;
     }
 
-    document.getElementById('downloadBtn').onclick = () => {
+    document.getElementById('downloadBtn').onclick = function() {
         const a = document.createElement('a');
         a.href = layerL.options.downloadUrl;
         a.download = `NDVI_${selected[0].date}.png`;
