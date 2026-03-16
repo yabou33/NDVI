@@ -2,60 +2,78 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>NDVI Expert — Précision Agricole</title>
+    <title>NDVI Expert — Distinction des Cultures</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #f0f2f0; }
-        #sidebar { width: 400px; min-width: 400px; padding: 20px; background: white; border-right: 1px solid #ccc; z-index: 1000; overflow-y: auto; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #f4f4f4; }
+        #sidebar { width: 380px; min-width: 380px; padding: 18px; background: white; border-right: 1px solid #ddd; z-index: 1000; overflow-y: auto; }
         #map { flex-grow: 1; }
-        .card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 15px; background: #fff; }
-        h2 { color: #1b5e20; margin: 0 0 15px; font-size: 1.4em; }
-        small-label { display: block; font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; margin-bottom: 5px; }
-        select, input[type=date], input[type=range] { width: 100%; margin-bottom: 10px; }
-        .btn { width: 100%; padding: 12px; border-radius: 5px; border: none; font-weight: 700; cursor: pointer; color: white; margin-top: 5px; }
-        .g { background: #2e7d32; } .b { background: #1565c0; } .d { background: #455a64; }
-        .stats { background: #f1f8e9; padding: 10px; border-radius: 5px; border-left: 4px solid #2e7d32; margin-top: 10px; font-size: 13px; }
-        .img-item { border: 1px solid #eee; padding: 10px; margin-top: 5px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; transition: 0.2s; }
-        .img-item:hover { background: #f5f5f5; }
-        .img-item.active { border-color: #1565c0; background: #e3f2fd; }
-        /* Style pour le slider de comparaison */
-        .leaflet-sbs-range { width: 100% !important; z-index: 999; cursor: ew-resize; }
+        .card { border: 1px solid #e0e0e0; padding: 14px; border-radius: 8px; margin-bottom: 12px; background: #fff; }
+        h2 { color: #2e7d32; font-size: 1.3em; margin: 0 0 12px; }
+        small-label { display: block; font-size: 11px; color: #666; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
+        select, input[type=date], input[type=range] { width: 100%; margin-top: 4px; border-radius: 4px; }
+        
+        .range-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; }
+        .btn { width: 100%; padding: 10px; margin-top: 8px; border-radius: 5px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; color: white; }
+        .g { background: #2e7d32; } .b { background: #1565c0; } .d { background: #546e7a; }
+        
+        .legend { margin-top: 10px; font-size: 0.85em; line-height: 1.5; }
+        .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .dot { width: 14px; height: 14px; border-radius: 2px; border: 1px solid #999; }
+        
+        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 4px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; font-size: 12px; }
+        .img-item.active { border-color: #1565c0; background: #e3f2fd; font-weight: 700; }
+        #status { margin-top: 8px; font-size: 12px; padding: 8px; border-radius: 4px; display: none; }
+        .ok { background: #e8f5e9; color: #2e7d32; display: block; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>🌿 NDVI & Surfaces</h2>
+    <h2>🌿 Diagnostic Céréalier</h2>
 
     <div class="card">
-        <small-label>1. Zone d'étude</small-label>
+        <small-label>Gouvernorat</small-label>
         <select id="regionSelect">
             <option value="[10.83,36.72,10.90,36.80]">Nabeul (Cap Bon)</option>
             <option value="[10.12,36.82,10.22,36.95]">Ariana</option>
-            <option value="[9.15,36.65,9.30,36.80]">Béja</option>
+            <option value="[9.15,36.65,9.30,36.80]">Béja (Grandes cultures)</option>
             <option value="[10.55,35.78,10.68,35.88]">Sousse</option>
         </select>
-        <div id="surfaceStats" class="stats" style="display:none">
-            📏 Surface Totale: <span id="totalHa">0</span> ha<br>
-            🌾 Surface Agricole: <span id="agriHa">0</span> ha
-        </div>
+        <div id="areaDisplay" style="margin-top:8px; font-size:13px; color:#2e7d32; font-weight:bold; display:none;"></div>
     </div>
 
     <div class="card">
-        <small-label>2. Filtres temporels</small-label>
-        <input type="date" id="dateStart" value="2025-01-01">
-        <input type="date" id="dateEnd" value="2026-03-16">
-        <small-label>Nuages max: <span id="cVal">30</span>%</small-label>
-        <input type="range" id="cRange" min="0" max="100" value="30" oninput="document.getElementById('cVal').innerText=this.value">
-        <button class="btn g" id="searchBtn">🔍 Rechercher (Max 100 images)</button>
+        <small-label>Période & Filtres</small-label>
+        <input type="date" id="dateDebut" value="2025-01-01">
+        <input type="date" id="dateFin"   value="2026-03-16">
+        
+        <div class="range-row"><span>Nuages max :</span><strong id="cloudLbl">30%</strong></div>
+        <input type="range" id="cloudRange" min="0" max="100" value="30" oninput="document.getElementById('cloudLbl').innerText=this.value+'%'">
+
+        <div class="range-row"><span>Nombre d'images :</span><strong id="limitLbl">50</strong></div>
+        <input type="range" id="limitRange" min="1" max="100" value="50" oninput="document.getElementById('limitLbl').innerText=this.value">
+
+        <button class="btn g" id="searchBtn">🔍 Rechercher</button>
+        <div id="status"></div>
+    </div>
+
+    <div class="card">
+        <small-label>Légende d'Analyse</small-label>
+        <div class="legend">
+            <div class="legend-row"><div class="dot" style="background:#000080"></div> <b>Eau :</b> Barrages / Oueds</div>
+            <div class="legend-row"><div class="dot" style="background:#cc2200"></div> <b>Sol nu / Bâti :</b> Zones urbaines ou labourées</div>
+            <div class="legend-row"><div class="dot" style="background:#ffff00"></div> <b>Végétation faible :</b> Céréales (levée) / Steppes</div>
+            <div class="legend-row"><div class="dot" style="background:#228b22"></div> <b>Végétation dense :</b> Blé (tallage) / Vergers</div>
+        </div>
     </div>
 
     <div id="resultsCard" class="card" style="display:none">
-        <small-label>3. Images (Sélectionnez pour voir)</small-label>
+        <small-label>Images disponibles</small-label>
         <div id="imageList"></div>
-        <button class="btn b" id="compareBtn" style="display:none">📊 Comparer 2 images</button>
-        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger NDVI</button>
+        <button class="btn b" id="compareBtn" style="display:none">📊 Comparer 2 dates</button>
+        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger (.png)</button>
     </div>
 </div>
 
@@ -69,11 +87,11 @@
     const CLIENT_ID = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
     const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh";
 
-    const map = L.map('map').setView([36.8, 10.2], 9);
-    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { attribution: 'Google Satellite' }).addTo(map);
+    const map = L.map('map').setView([36.7, 10.2], 9);
+    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { attribution: 'Google' }).addTo(map);
 
+    let layerL, layerR, slider, selected = [], currentBbox, currentBounds, selectedGeom = null;
     let drawnItems = new L.FeatureGroup().addTo(map);
-    let layerL, layerR, sbs, selectedDates = [], currentBbox, currentBounds, selectedGeom = null;
 
     map.addControl(new L.Control.Draw({
         draw: { polygon: true, rectangle: true, polyline: false, circle: false, marker: false, circlemarker: false }
@@ -86,10 +104,9 @@
         selectedGeom = layer.toGeoJSON().geometry;
         currentBounds = layer.getBounds();
         currentBbox = [currentBounds.getWest(), currentBounds.getSouth(), currentBounds.getEast(), currentBounds.getNorth()];
-        
-        const area = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 10000).toFixed(2);
-        document.getElementById('totalHa').innerText = area;
-        document.getElementById('surfaceStats').style.display = 'block';
+        const ha = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 10000).toFixed(2);
+        document.getElementById('areaDisplay').innerHTML = `📍 Zone : ${ha} ha`;
+        document.getElementById('areaDisplay').style.display = 'block';
     });
 
     async function getToken() {
@@ -111,6 +128,9 @@
 
     document.getElementById('searchBtn').onclick = async function() {
         this.disabled = true;
+        const status = document.getElementById('status');
+        status.innerText = "Recherche..."; status.className = "ok"; status.style.display = "block";
+
         try {
             const token = await getToken();
             const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
@@ -118,17 +138,16 @@
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     bbox: currentBbox,
-                    datetime: `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
+                    datetime: `${document.getElementById('dateDebut').value}T00:00:00Z/${document.getElementById('dateFin').value}T23:59:59Z`,
                     collections: ["sentinel-2-l2a"],
-                    limit: 100 // Augmenté pour voir toutes les images de l'année
+                    limit: parseInt(document.getElementById('limitRange').value)
                 })
             });
             const data = await res.json();
-            const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 0) <= document.getElementById('cRange').value);
+            const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 0) <= document.getElementById('cloudRange').value);
             
             const list = document.getElementById('imageList');
-            list.innerHTML = '';
-            selectedDates = [];
+            list.innerHTML = ''; selected = [];
             document.getElementById('resultsCard').style.display = 'block';
 
             filtered.forEach(f => {
@@ -136,67 +155,55 @@
                 const div = document.createElement('div');
                 div.className = 'img-item';
                 div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${Math.round(f.properties['eo:cloud_cover'])}%</span>`;
-                
                 div.onclick = async () => {
-                    // Gestion de la sélection (max 2)
-                    if (div.classList.contains('active')) {
+                    if (selected.includes(date)) {
+                        selected = selected.filter(d => d !== date);
                         div.classList.remove('active');
-                        selectedDates = selectedDates.filter(d => d !== date);
-                    } else {
-                        if (selectedDates.length >= 2) return alert("Désélectionnez une image d'abord.");
+                    } else if (selected.length < 2) {
+                        selected.push(date);
                         div.classList.add('active');
-                        selectedDates.push(date);
+                        if (selected.length === 1) await render(selected[0], token);
                     }
-                    
-                    // Affichage immédiat si 1 seule image
-                    if (selectedDates.length === 1) {
-                        await displaySingle(selectedDates[0], token);
-                    }
-                    
-                    document.getElementById('compareBtn').style.display = selectedDates.length === 2 ? 'block' : 'none';
-                    document.getElementById('downloadBtn').style.display = selectedDates.length > 0 ? 'block' : 'none';
+                    document.getElementById('compareBtn').style.display = selected.length === 2 ? 'block' : 'none';
+                    document.getElementById('downloadBtn').style.display = selected.length > 0 ? 'block' : 'none';
                 };
                 list.appendChild(div);
             });
-        } catch (e) { alert("Erreur lors de la recherche."); }
+            status.innerText = `${filtered.length} images trouvées.`;
+        } catch (e) { status.innerText = "Erreur API"; }
         this.disabled = false;
     };
 
-    async function displaySingle(date, token) {
-        if (layerL) map.removeLayer(layerL);
-        if (layerR) map.removeLayer(layerR);
-        if (sbs) map.removeControl(sbs);
-
+    async function render(date, token) {
+        if (layerL) map.removeLayer(layerL); if (layerR) map.removeLayer(layerR); if (slider) map.removeControl(slider);
         layerL = await getNDVILayer(date, token);
         layerL.addTo(map);
     }
 
     document.getElementById('compareBtn').onclick = async function() {
         const token = await getToken();
-        if (layerL) map.removeLayer(layerL);
-        if (layerR) map.removeLayer(layerR);
-        if (sbs) map.removeControl(sbs);
-
-        layerL = await getNDVILayer(selectedDates[0], token);
-        layerR = await getNDVILayer(selectedDates[1], token);
-        
-        layerL.addTo(map);
-        layerR.addTo(map);
-        
-        // Le plugin sideBySide gère le clip pour qu'elles ne se cachent pas
-        sbs = L.control.sideBySide(layerL, layerR).addTo(map);
+        if (layerL) map.removeLayer(layerL); if (layerR) map.removeLayer(layerR); if (slider) map.removeControl(slider);
+        layerL = await getNDVILayer(selected[0], token);
+        layerR = await getNDVILayer(selected[1], token);
+        layerL.addTo(map); layerR.addTo(map);
+        slider = L.control.sideBySide(layerL, layerR).addTo(map);
     };
 
     async function getNDVILayer(date, token) {
+        // Evalscript amélioré pour distinguer l'eau et les types de végétation
         const evalscript = `//VERSION=3
-        function setup() { return { input: ["B04", "B08", "dataMask"], output: { bands: 4 } }; }
+        function setup() { return { input: ["B02", "B03", "B04", "B08", "dataMask"], output: { bands: 4 } }; }
         function evaluatePixel(sample) {
             let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0001);
+            let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08 + 0.0001); // Index Eau
+            
             if (sample.dataMask === 0) return [0,0,0,0];
-            // Code couleur NDVI
-            if (ndvi < 0.2) return [0.8, 0.1, 0.1, 1]; // Rouge (Sol nu)
-            if (ndvi < 0.4) return [0.9, 0.9, 0.1, 1]; // Jaune (Végétation faible)
-            return [0.1, 0.5, 0.1, 1];                // Vert (Sain)
+            
+            if (ndwi > 0.1) return [0, 0, 0.5, 1]; // EAU (Bleu foncé)
+            if (ndvi < 0.15) return [0.8, 0.1, 0.1, 1]; // SOL NU / VILLE (Rouge)
+            if (ndvi < 0.35) return [1, 1, 0, 1];   // VEGETATION FAIBLE (Jaune)
+            if (ndvi < 0.7) return [0.1, 0.5, 0.1, 1]; // VEGETATION DENSE (Vert)
+            return [0, 0.3, 0, 1]; // VEGETATION TRES DENSE
         }`;
 
         const bData = selectedGeom ? { geometry: selectedGeom } : { bbox: currentBbox };
@@ -211,24 +218,16 @@
                 evalscript
             })
         });
-
-        const blob = await r.blob();
-        const url = URL.createObjectURL(blob);
+        const url = URL.createObjectURL(await r.blob());
         const l = L.imageOverlay(url, currentBounds);
         l.downUrl = url;
-        
-        // Simulation du calcul de surface agricole (NDVI > 0.3)
-        // Note: Pour un vrai calcul précis, il faudrait parser les pixels du blob
-        const total = parseFloat(document.getElementById('totalHa').innerText);
-        document.getElementById('agriHa').innerText = (total * 0.75).toFixed(2); // Estimé à 75% pour l'exemple
-        
         return l;
     }
 
     document.getElementById('downloadBtn').onclick = () => {
         const link = document.createElement('a');
         link.href = layerL.downUrl;
-        link.download = `NDVI_${selectedDates[0]}.png`;
+        link.download = `Analyse_Tunisie_${selected[0]}.png`;
         link.click();
     };
 </script>
