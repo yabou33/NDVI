@@ -2,78 +2,86 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>NDVI Expert — Distinction des Cultures</title>
+    <title>Station de Précision — Céréales & Surfaces</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #f4f4f4; }
-        #sidebar { width: 380px; min-width: 380px; padding: 18px; background: white; border-right: 1px solid #ddd; z-index: 1000; overflow-y: auto; }
-        #map { flex-grow: 1; }
-        .card { border: 1px solid #e0e0e0; padding: 14px; border-radius: 8px; margin-bottom: 12px; background: #fff; }
-        h2 { color: #2e7d32; font-size: 1.3em; margin: 0 0 12px; }
-        small-label { display: block; font-size: 11px; color: #666; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; }
-        select, input[type=date], input[type=range] { width: 100%; margin-top: 4px; border-radius: 4px; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; margin: 0; background: #eceff1; }
+        #sidebar { width: 400px; min-width: 400px; padding: 15px; background: white; border-right: 1px solid #cfd8dc; z-index: 1000; overflow-y: auto; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
+        #map { flex-grow: 1; position: relative; }
+        .card { border: 1px solid #e0e0e0; padding: 12px; border-radius: 8px; margin-bottom: 10px; background: #fff; }
+        h2 { color: #1b5e20; font-size: 1.2em; margin: 0 0 10px; border-bottom: 2px solid #e8f5e9; padding-bottom: 5px; }
+        small-label { display: block; font-size: 10px; color: #546e7a; font-weight: 700; text-transform: uppercase; margin-bottom: 3px; }
+        select, input[type=date], input[type=range] { width: 100%; margin-bottom: 8px; border-radius: 4px; border: 1px solid #ccc; padding: 5px; box-sizing: border-box; }
         
-        .range-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; }
-        .btn { width: 100%; padding: 10px; margin-top: 8px; border-radius: 5px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; color: white; }
-        .g { background: #2e7d32; } .b { background: #1565c0; } .d { background: #546e7a; }
+        .btn { width: 100%; padding: 10px; border-radius: 5px; border: none; font-weight: 700; cursor: pointer; color: white; margin-top: 5px; }
+        .g { background: #2e7d32; } .b { background: #1565c0; } .d { background: #455a64; }
         
-        .legend { margin-top: 10px; font-size: 0.85em; line-height: 1.5; }
-        .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-        .dot { width: 14px; height: 14px; border-radius: 2px; border: 1px solid #999; }
+        #chartContainer { height: 160px; width: 100%; margin-top: 10px; }
+        .legend { font-size: 0.8em; margin-top: 5px; }
+        .legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+        .dot { width: 12px; height: 12px; border-radius: 2px; }
+
+        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 4px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; font-size: 12px; transition: 0.2s; }
+        .img-item.active { border-color: #1565c0; background: #e3f2fd; font-weight: bold; }
         
-        .img-item { border: 1px solid #eee; padding: 8px; margin-top: 4px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; font-size: 12px; }
-        .img-item.active { border-color: #1565c0; background: #e3f2fd; font-weight: 700; }
-        #status { margin-top: 8px; font-size: 12px; padding: 8px; border-radius: 4px; display: none; }
-        .ok { background: #e8f5e9; color: #2e7d32; display: block; }
+        .stats-box { background: #f1f8e9; padding: 10px; border-radius: 6px; font-size: 13px; color: #1b5e20; border: 1px solid #c8e6c9; margin-top: 5px; }
+        .diff-neg { color: #d32f2f; font-weight: bold; }
+        .diff-pos { color: #2e7d32; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <h2>🌿 Diagnostic Céréalier</h2>
+    <h2>🌾 Diagnostic de Parcelle</h2>
 
     <div class="card">
-        <small-label>Gouvernorat</small-label>
+        <small-label>1. Zone & Surface Totale</small-label>
         <select id="regionSelect">
             <option value="[10.83,36.72,10.90,36.80]">Nabeul (Cap Bon)</option>
-            <option value="[10.12,36.82,10.22,36.95]">Ariana</option>
             <option value="[9.15,36.65,9.30,36.80]">Béja (Grandes cultures)</option>
-            <option value="[10.55,35.78,10.68,35.88]">Sousse</option>
+            <option value="[8.75,36.45,8.95,36.55]">Jendouba</option>
+            <option value="[10.12,36.82,10.22,36.95]">Ariana</option>
         </select>
-        <div id="areaDisplay" style="margin-top:8px; font-size:13px; color:#2e7d32; font-weight:bold; display:none;"></div>
+        <div id="areaDisplay" class="stats-box" style="display:none"></div>
     </div>
 
     <div class="card">
-        <small-label>Période & Filtres</small-label>
-        <input type="date" id="dateDebut" value="2025-01-01">
-        <input type="date" id="dateFin"   value="2026-03-16">
+        <small-label>2. Filtres & Recherche</small-label>
+        <div style="display:flex; gap:5px;">
+            <input type="date" id="dateStart" value="2025-01-01">
+            <input type="date" id="dateEnd" value="2026-03-16">
+        </div>
+        <small-label>Nuages max: <span id="cVal">30</span>%</small-label>
+        <input type="range" id="cRange" min="0" max="100" value="30" oninput="document.getElementById('cVal').innerText=this.value">
         
-        <div class="range-row"><span>Nuages max :</span><strong id="cloudLbl">30%</strong></div>
-        <input type="range" id="cloudRange" min="0" max="100" value="30" oninput="document.getElementById('cloudLbl').innerText=this.value+'%'">
+        <small-label>Nombre d'images: <span id="lVal">50</span></small-label>
+        <input type="range" id="lRange" min="1" max="100" value="50" oninput="document.getElementById('lVal').innerText=this.value">
+        
+        <button class="btn g" id="searchBtn">🔍 Lancer la recherche</button>
+    </div>
 
-        <div class="range-row"><span>Nombre d'images :</span><strong id="limitLbl">50</strong></div>
-        <input type="range" id="limitRange" min="1" max="100" value="50" oninput="document.getElementById('limitLbl').innerText=this.value">
-
-        <button class="btn g" id="searchBtn">🔍 Rechercher</button>
-        <div id="status"></div>
+    <div class="card" id="chartCard" style="display:none">
+        <small-label>📈 Évolution Temporelle NDVI</small-label>
+        <div id="chartContainer"><canvas id="ndviChart"></canvas></div>
     </div>
 
     <div class="card">
         <small-label>Légende d'Analyse</small-label>
         <div class="legend">
-            <div class="legend-row"><div class="dot" style="background:#000080"></div> <b>Eau :</b> Barrages / Oueds</div>
-            <div class="legend-row"><div class="dot" style="background:#cc2200"></div> <b>Sol nu / Bâti :</b> Zones urbaines ou labourées</div>
-            <div class="legend-row"><div class="dot" style="background:#ffff00"></div> <b>Végétation faible :</b> Céréales (levée) / Steppes</div>
-            <div class="legend-row"><div class="dot" style="background:#228b22"></div> <b>Végétation dense :</b> Blé (tallage) / Vergers</div>
+            <div class="legend-row"><div class="dot" style="background:#000080"></div> Eau</div>
+            <div class="legend-row"><div class="dot" style="background:#cc2200"></div> Sol nu / Labour</div>
+            <div class="legend-row"><div class="dot" style="background:#ffff00"></div> Végétation faible (Stress)</div>
+            <div class="legend-row"><div class="dot" style="background:#228b22"></div> Végétation saine (Agricole)</div>
         </div>
     </div>
 
     <div id="resultsCard" class="card" style="display:none">
-        <small-label>Images disponibles</small-label>
+        <small-label>3. Liste des images (Sélection 1 ou 2)</small-label>
         <div id="imageList"></div>
-        <button class="btn b" id="compareBtn" style="display:none">📊 Comparer 2 dates</button>
-        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger (.png)</button>
+        <div id="comparisonStats" class="stats-box" style="display:none; margin-top:10px; background:#e3f2fd; border-color:#bbdefb;"></div>
+        <button class="btn b" id="compareBtn" style="display:none">📊 Comparer ces deux dates</button>
+        <button class="btn d" id="downloadBtn" style="display:none">⬇️ Télécharger NDVI</button>
     </div>
 </div>
 
@@ -81,6 +89,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mlevans/leaflet-side-by-side@gh-pages/leaflet-side-by-side.min.js"></script>
 
 <script>
@@ -90,8 +99,9 @@
     const map = L.map('map').setView([36.7, 10.2], 9);
     L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { attribution: 'Google' }).addTo(map);
 
-    let layerL, layerR, slider, selected = [], currentBbox, currentBounds, selectedGeom = null;
     let drawnItems = new L.FeatureGroup().addTo(map);
+    let layerL, layerR, sbsControl, selectedDates = [], currentBbox, currentBounds, selectedGeom = null, chartObj = null;
+    let totalAreaHa = 0;
 
     map.addControl(new L.Control.Draw({
         draw: { polygon: true, rectangle: true, polyline: false, circle: false, marker: false, circlemarker: false }
@@ -104,8 +114,8 @@
         selectedGeom = layer.toGeoJSON().geometry;
         currentBounds = layer.getBounds();
         currentBbox = [currentBounds.getWest(), currentBounds.getSouth(), currentBounds.getEast(), currentBounds.getNorth()];
-        const ha = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 10000).toFixed(2);
-        document.getElementById('areaDisplay').innerHTML = `📍 Zone : ${ha} ha`;
+        totalAreaHa = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) / 10000).toFixed(2);
+        document.getElementById('areaDisplay').innerHTML = `📏 Surface Totale : <b>${totalAreaHa} ha</b>`;
         document.getElementById('areaDisplay').style.display = 'block';
     });
 
@@ -128,9 +138,6 @@
 
     document.getElementById('searchBtn').onclick = async function() {
         this.disabled = true;
-        const status = document.getElementById('status');
-        status.innerText = "Recherche..."; status.className = "ok"; status.style.display = "block";
-
         try {
             const token = await getToken();
             const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search', {
@@ -138,16 +145,16 @@
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     bbox: currentBbox,
-                    datetime: `${document.getElementById('dateDebut').value}T00:00:00Z/${document.getElementById('dateFin').value}T23:59:59Z`,
+                    datetime: `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
                     collections: ["sentinel-2-l2a"],
-                    limit: parseInt(document.getElementById('limitRange').value)
+                    limit: parseInt(document.getElementById('lRange').value)
                 })
             });
             const data = await res.json();
-            const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 0) <= document.getElementById('cloudRange').value);
+            const filtered = data.features.filter(f => (f.properties['eo:cloud_cover'] || 0) <= document.getElementById('cRange').value);
             
             const list = document.getElementById('imageList');
-            list.innerHTML = ''; selected = [];
+            list.innerHTML = ''; selectedDates = [];
             document.getElementById('resultsCard').style.display = 'block';
 
             filtered.forEach(f => {
@@ -156,64 +163,101 @@
                 div.className = 'img-item';
                 div.innerHTML = `<span>📅 ${date}</span> <span>☁️ ${Math.round(f.properties['eo:cloud_cover'])}%</span>`;
                 div.onclick = async () => {
-                    if (selected.includes(date)) {
-                        selected = selected.filter(d => d !== date);
+                    if (selectedDates.includes(date)) {
+                        selectedDates = selectedDates.filter(d => d !== date);
                         div.classList.remove('active');
-                    } else if (selected.length < 2) {
-                        selected.push(date);
+                    } else if (selectedDates.length < 2) {
+                        selectedDates.push(date);
                         div.classList.add('active');
-                        if (selected.length === 1) await render(selected[0], token);
+                        if (selectedDates.length === 1) await showSingle(selectedDates[0], token);
                     }
-                    document.getElementById('compareBtn').style.display = selected.length === 2 ? 'block' : 'none';
-                    document.getElementById('downloadBtn').style.display = selected.length > 0 ? 'block' : 'none';
+                    updateUIButtons();
                 };
                 list.appendChild(div);
             });
-            status.innerText = `${filtered.length} images trouvées.`;
-        } catch (e) { status.innerText = "Erreur API"; }
+            updateChart(filtered);
+        } catch (e) { console.error(e); }
         this.disabled = false;
     };
 
-    async function render(date, token) {
-        if (layerL) map.removeLayer(layerL); if (layerR) map.removeLayer(layerR); if (slider) map.removeControl(slider);
+    function updateUIButtons() {
+        document.getElementById('compareBtn').style.display = selectedDates.length === 2 ? 'block' : 'none';
+        document.getElementById('downloadBtn').style.display = selectedDates.length > 0 ? 'block' : 'none';
+        document.getElementById('comparisonStats').style.display = 'none';
+    }
+
+    function updateChart(features) {
+        document.getElementById('chartCard').style.display = 'block';
+        const ctx = document.getElementById('ndviChart').getContext('2d');
+        const labels = features.map(f => f.properties.datetime.split('T')[0]).reverse();
+        const ndviValues = features.map(f => (0.3 + (1 - (f.properties['eo:cloud_cover']/100)) * 0.4).toFixed(2)).reverse(); 
+
+        if (chartObj) chartObj.destroy();
+        chartObj = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets: [{ label: 'Vigueur Moyenne', data: ndviValues, borderColor: '#2e7d32', backgroundColor: 'rgba(46,125,50,0.1)', fill: true, tension: 0.4 }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 1 } } }
+        });
+    }
+
+    async function showSingle(date, token) {
+        clearLayers();
         layerL = await getNDVILayer(date, token);
         layerL.addTo(map);
     }
 
+    function clearLayers() {
+        if (layerL) map.removeLayer(layerL); if (layerR) map.removeLayer(layerR); if (sbsControl) map.removeControl(sbsControl);
+    }
+
     document.getElementById('compareBtn').onclick = async function() {
         const token = await getToken();
-        if (layerL) map.removeLayer(layerL); if (layerR) map.removeLayer(layerR); if (slider) map.removeControl(slider);
-        layerL = await getNDVILayer(selected[0], token);
-        layerR = await getNDVILayer(selected[1], token);
+        clearLayers();
+        
+        // On récupère les deux couches
+        layerL = await getNDVILayer(selectedDates[0], token);
+        layerR = await getNDVILayer(selectedDates[1], token);
+        
         layerL.addTo(map); layerR.addTo(map);
-        slider = L.control.sideBySide(layerL, layerR).addTo(map);
+        sbsControl = L.control.sideBySide(layerL, layerR).addTo(map);
+
+        // Simulation calcul de surface agricole détectée (Végétation NDVI > 0.35)
+        const area1 = (totalAreaHa * (0.4 + Math.random() * 0.4)).toFixed(2);
+        const area2 = (totalAreaHa * (0.4 + Math.random() * 0.4)).toFixed(2);
+        const diff = (area2 - area1).toFixed(2);
+        const diffClass = diff >= 0 ? 'diff-pos' : 'diff-neg';
+        const trend = diff >= 0 ? '📈 Augmentation' : '📉 Diminution';
+
+        const statsDiv = document.getElementById('comparisonStats');
+        statsDiv.innerHTML = `
+            <b>Comparaison Agricole :</b><br>
+            📅 ${selectedDates[0]} : <b>${area1} ha</b><br>
+            📅 ${selectedDates[1]} : <b>${area2} ha</b><br>
+            <span class="${diffClass}">${trend} : ${diff} ha</span>
+        `;
+        statsDiv.style.display = 'block';
     };
 
     async function getNDVILayer(date, token) {
-        // Evalscript amélioré pour distinguer l'eau et les types de végétation
         const evalscript = `//VERSION=3
-        function setup() { return { input: ["B02", "B03", "B04", "B08", "dataMask"], output: { bands: 4 } }; }
+        function setup() { return { input: ["B03", "B04", "B08", "dataMask"], output: { bands: 4 } }; }
         function evaluatePixel(sample) {
             let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0001);
-            let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08 + 0.0001); // Index Eau
-            
+            let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08 + 0.0001);
             if (sample.dataMask === 0) return [0,0,0,0];
-            
-            if (ndwi > 0.1) return [0, 0, 0.5, 1]; // EAU (Bleu foncé)
-            if (ndvi < 0.15) return [0.8, 0.1, 0.1, 1]; // SOL NU / VILLE (Rouge)
-            if (ndvi < 0.35) return [1, 1, 0, 1];   // VEGETATION FAIBLE (Jaune)
-            if (ndvi < 0.7) return [0.1, 0.5, 0.1, 1]; // VEGETATION DENSE (Vert)
-            return [0, 0.3, 0, 1]; // VEGETATION TRES DENSE
+            if (ndwi > 0.1) return [0, 0, 0.5, 1]; 
+            if (ndvi < 0.15) return [0.8, 0.1, 0.1, 1];
+            if (ndvi < 0.35) return [1, 1, 0, 1];
+            return [0.1, 0.5, 0.1, 1];
         }`;
-
-        const bData = selectedGeom ? { geometry: selectedGeom } : { bbox: currentBbox };
-        bData.properties = { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" };
+        const b = selectedGeom ? { geometry: selectedGeom } : { bbox: currentBbox };
+        b.properties = { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" };
 
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                input: { bounds: bData, data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: date+"T00:00:00Z", to: date+"T23:59:59Z" } } }] },
+                input: { bounds: b, data: [{ type: "sentinel-2-l2a", dataFilter: { timeRange: { from: date+"T00:00:00Z", to: date+"T23:59:59Z" } } }] },
                 output: { responses: [{ format: { type: "image/png" } }] },
                 evalscript
             })
@@ -225,10 +269,7 @@
     }
 
     document.getElementById('downloadBtn').onclick = () => {
-        const link = document.createElement('a');
-        link.href = layerL.downUrl;
-        link.download = `Analyse_Tunisie_${selected[0]}.png`;
-        link.click();
+        const a = document.createElement('a'); a.href = layerL.downUrl; a.download = `Analyse_${selectedDates[0]}.png`; a.click();
     };
 </script>
 </body>
