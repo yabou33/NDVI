@@ -893,6 +893,10 @@ function evaluatePixel(s) {
        RECHERCHE
     ═══════════════════════════════════════════════════════ */
     document.getElementById('searchBtn').onclick = async function() {
+        if (!currentBbox) {
+            setStatus('⚠️ Sélectionnez d\'abord un gouvernorat', 's-err');
+            return;
+        }
         this.disabled = true;
         setStatus('<span class="spin"></span>Connexion...','s-info');
         clearAllLayers();
@@ -1011,6 +1015,10 @@ function evaluatePixel(s) {
                     // Désactiver infobulle si plus aucune couche visible
                     if (Object.keys(activeLayers).length===0) disableTooltip();
                 } else {
+                    if (!currentBbox) {
+                        setStatus('⚠️ Sélectionnez d\'abord un gouvernorat', 's-err');
+                        return;
+                    }
                     eyeBtn.innerHTML = '<span class="spin" style="border-top-color:#1e6fa8"></span>';
                     eyeBtn.disabled  = true;
                     try {
@@ -1154,55 +1162,89 @@ function evaluatePixel(s) {
        CONSTRUCTION COUCHE SENTINEL
     ═══════════════════════════════════════════════════════ */
     async function buildLayer(date, token, evalscript, asTiff=false) {
-        // Toujours utiliser bbox (plus stable que geometry pour Sentinel)
-        const boundsObj = {
-            bbox: currentBbox,
-            properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
-        };
+        // ── Résolution dynamique — plafonnée à 2500px (limite API free tier) ──
+        const dLng   = currentBbox[2] - currentBbox[0];
+        const dLat   = currentBbox[3] - currentBbox[1];
+        const cy     = (currentBbox[1] + currentBbox[3]) / 2;
+        const wM     = dLng * 111320 * Math.cos(cy * Math.PI / 180);
+        const hM     = dLat * 111320;
+        const TARGET_RES = 10; // 10m natif Sentinel-2
+        let   pixW   = Math.round(wM / TARGET_RES);
+        let   pixH   = Math.round(hM / TARGET_RES);
+        // Plafonner : free tier Sentinel Hub = max 2500×2500
+        const MAX_PIX = 2500;
+        if (pixW > MAX_PIX || pixH > MAX_PIX) {
+            const scale = MAX_PIX / Math.max(pixW, pixH);
+            pixW = Math.round(pixW * scale);
+            pixH = Math.round(pixH * scale);
+        }
+        pixW = Math.max(64, pixW);
+        pixH = Math.max(64, pixH);
+        const resM = Math.round(Math.max(wM, hM) / Math.max(pixW, pixH));
 
-        // ── Résolution dynamique selon la surface ──
-        const res = calcResolution(currentBbox);
+        console.log(`buildLayer: ${date} bbox=${JSON.stringify(currentBbox)} size=${pixW}x${pixH} res=${resM}m`);
 
         const fmt = asTiff
             ? { type: "image/tiff", parameters: { compression: "deflate" } }
             : { type: "image/png" };
 
-        const r = await fetch('https://services.sentinel-hub.com/api/v1/process',{
-            method:'POST',
-            headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-            body:JSON.stringify({
-                input: {
-                    bounds: boundsObj,
-                    data:[{type:"sentinel-2-l2a",dataFilter:{timeRange:{from:`${date}T00:00:00Z`,to:`${date}T23:59:59Z`}}}]
+        const body = {
+            input: {
+                bounds: {
+                    bbox: currentBbox,
+                    properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
                 },
-                output:{
-                    width:  res.w,
-                    height: res.h,
-                    responses:[{identifier:"default", format: fmt}]
-                },
-                evalscript
-            })
+                data: [{
+                    type: "sentinel-2-l2a",
+                    dataFilter: {
+                        timeRange: {
+                            from: `${date}T00:00:00Z`,
+                            to:   `${date}T23:59:59Z`
+                        }
+                    }
+                }]
+            },
+            output: {
+                width:  pixW,
+                height: pixH,
+                responses: [{ identifier: "default", format: fmt }]
+            },
+            evalscript
+        };
+
+        console.log('Request body:', JSON.stringify(body).slice(0, 300));
+
+        const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
+            method:  'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body:    JSON.stringify(body)
         });
 
         if (!r.ok) {
             const txt = await r.text();
+            console.error('Process API error:', txt);
             let msg = `Process API ${r.status}`;
-            try { msg+=': '+(JSON.parse(txt).error?.message||txt.slice(0,120)); } catch { msg+=': '+txt.slice(0,120); }
+            try {
+                const j = JSON.parse(txt);
+                msg += ': ' + (j.error?.message || j.description || j.message || txt.slice(0,200));
+            } catch { msg += ': ' + txt.slice(0, 200); }
             throw new Error(msg);
         }
+
         const ct = r.headers.get('content-type') || '';
-        if (!ct.includes('image') && !ct.includes('tiff') && !ct.includes('octet')) {
+        if (!ct.includes('image') && !ct.includes('tiff') && !ct.includes('octet-stream')) {
             const txt = await r.text();
-            throw new Error('Réponse non-image: '+txt.slice(0,120));
+            console.error('Non-image response:', txt);
+            throw new Error('Réponse non-image (' + ct + '): ' + txt.slice(0, 200));
         }
 
         const blob  = await r.blob();
         const url   = URL.createObjectURL(blob);
-        const layer = L.imageOverlay(url, currentBounds, {opacity:0.88});
+        const layer = L.imageOverlay(url, currentBounds, { opacity: 0.88 });
         layer._downloadUrl  = url;
         layer._downloadDate = date;
         layer._isTiff       = asTiff;
-        layer._resInfo      = res;
+        layer._resInfo      = { w: pixW, h: pixH, resM };
         return layer;
     }
 
