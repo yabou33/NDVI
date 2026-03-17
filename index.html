@@ -21,7 +21,7 @@
         body{font-family:var(--font);display:flex;height:100vh;overflow:hidden;background:var(--bg-page);}
 
         /* SIDEBAR */
-        #sidebar{width:320px;min-width:320px;background:var(--dark);display:flex;flex-direction:column;z-index:1000;box-shadow:4px 0 24px rgba(0,0,0,.35);}
+        #sidebar{width:400px;min-width:400px;background:var(--dark);display:flex;flex-direction:column;z-index:1000;box-shadow:4px 0 24px rgba(0,0,0,.35);}
         #sidebar-header{padding:16px 20px 12px;background:var(--dark);border-bottom:1px solid var(--dark-border);flex-shrink:0;}
         #sidebar-header img{height:36px;width:auto;display:block;}
         #sidebar-header .module-tag{margin-top:5px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);opacity:.9;}
@@ -31,7 +31,7 @@
         .card{background:var(--dark-mid);border:1px solid var(--dark-border);border-radius:10px;padding:12px;margin-bottom:9px;}
         .card-title{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:9px;display:flex;align-items:center;gap:6px;}
         .ct-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);flex-shrink:0;}
-        select,input[type=date]{width:100%;padding:8px 10px;background:var(--dark-light);border:1px solid var(--dark-border);border-radius:6px;color:var(--text-main);font-family:var(--font);font-size:12px;margin-bottom:6px;outline:none;transition:border-color .2s;}
+        select,input[type=date]{width:100%;padding:8px 10px;background:var(--dark-light);border:1px solid var(--dark-border);border-radius:6px;color:var(--text-main);font-family:var(--font);font-size:13px;margin-bottom:6px;outline:none;transition:border-color .2s;}
         select:focus,input[type=date]:focus{border-color:var(--cyan);}
         select option{background:var(--dark-mid);}
         .date-row{display:flex;gap:6px;}
@@ -129,21 +129,17 @@
         <div class="card">
             <div class="card-title"><span class="ct-dot"></span>Gouvernorat</div>
 
-            <select id="regionSelect">
-                <option value="">— Choisir un gouvernorat —</option>
+            <select id="regionSelect" multiple size="6" style="height:auto;min-height:120px;border-radius:7px;">
             </select>
-            <div id="govStatus" style="font-size:10.5px;color:var(--text-muted);">Chargement des données...</div>
+            <p style="font-size:10px;color:var(--text-dim);margin-top:4px;">
+                Ctrl+clic pour sélectionner plusieurs gouvernorats
+            </p>
+            <div id="govStatus" style="font-size:11px;color:var(--text-muted);margin-top:4px;">Chargement des données...</div>
 
-            <!-- Upload ZIP SHP -->
-            <div class="upload-zone" id="uploadZone" onclick="document.getElementById('zipInput').click()" title="Charger un fichier ZIP contenant un Shapefile">
-                <input type="file" id="zipInput" accept=".zip">
-                <div style="font-size:18px;">📂</div>
-                <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-top:3px;">Charger un ZIP Shapefile</div>
-                <p>Contours personnalisés (.shp + .dbf)</p>
-            </div>
+<!-- ZIP upload désactivé temporairement -->
 
             <div id="areaDisplay" class="stats-box" style="display:none"></div>
-            <p style="font-size:10px;color:var(--text-dim);margin-top:7px;">✏️ Dessinez une parcelle sur la carte pour affiner la zone</p>
+            <p style="font-size:11px;color:var(--text-dim);margin-top:7px;">✏️ Dessinez une parcelle sur la carte pour affiner la zone</p>
         </div>
 
         <!-- Période -->
@@ -192,7 +188,10 @@
                 👁 Afficher &nbsp;·&nbsp; <span style="color:#ce93d8;font-weight:600;">R</span> Comparer
             </div>
             <div id="imageList"></div>
-            <button class="btn btn-slate" id="downloadBtn" style="display:none;margin-top:9px;">⬇️ Télécharger</button>
+            <div id="downloadBtns" style="margin-top:9px;gap:5px;display:none;flex-direction:column;">
+                <button class="btn btn-slate" id="downloadBtn">⬇️ Télécharger PNG</button>
+                <button class="btn btn-slate" id="downloadTifBtn" style="background:#2d3d52;border:1px solid #00b8d9;">🗺️ Télécharger GeoTIFF</button>
+            </div>
         </div>
 
     </div>
@@ -596,16 +595,51 @@ function evaluatePixel(s) {
     let gouvernoratLayer = null;
     let gouvernoratsGeoJSON = null; // Chargé depuis ZIP ou données intégrées
 
-    function setGouvernoratFeature(feature) {
+    // ── Calcul résolution dynamique selon surface ──
+    function calcResolution(bbox) {
+        const dLng = bbox[2] - bbox[0];
+        const dLat = bbox[3] - bbox[1];
+        const cy   = (bbox[1] + bbox[3]) / 2;
+        const widthM  = dLng * 111320 * Math.cos(cy * Math.PI / 180);
+        const heightM = dLat * 111320;
+        // Sentinel-2 natif = 10m. On cible max 4096px, min 256px
+        const pixW = Math.min(4096, Math.max(256, Math.round(widthM  / 10)));
+        const pixH = Math.min(4096, Math.max(256, Math.round(heightM / 10)));
+        const resM = Math.round(Math.max(widthM, heightM) / Math.max(pixW, pixH));
+        return { w: pixW, h: pixH, resM };
+    }
+
+    // ── Merge multi-feature → union bbox + MultiPolygon geometry ──
+    function mergeFeatures(features) {
+        if (features.length === 1) return features[0];
+        // Merge all rings into a GeometryCollection for display
+        // For Sentinel bbox: use combined bounds
+        const allCoords = features.flatMap(f =>
+            f.geometry.type === 'Polygon'
+                ? f.geometry.coordinates
+                : f.geometry.coordinates
+        );
+        return {
+            type: 'Feature',
+            properties: { name: features.map(f => f.properties.name).join(' + ') },
+            geometry: { type: 'MultiPolygon', coordinates: allCoords.map(r => [r]) }
+        };
+    }
+
+    function setGouvernoratFeatures(selectedFeatures) {
         if (gouvernoratLayer) map.removeLayer(gouvernoratLayer);
         if (window.areaRect)  { map.removeLayer(window.areaRect); window.areaRect = null; }
         drawnItems.clearLayers();
         selectedGeom = null;
         disableTooltip();
 
-        gouvernoratLayer = L.geoJSON(feature, {
-            style: { color:'#00b8d9', weight:2.5, fillColor:'#00b8d9', fillOpacity:0.07, dashArray:'6 4' }
-        }).addTo(map);
+        if (!selectedFeatures.length) return;
+
+        // Draw all selected boundaries
+        gouvernoratLayer = L.geoJSON(
+            { type:'FeatureCollection', features: selectedFeatures },
+            { style: { color:'#00b8d9', weight:2.5, fillColor:'#00b8d9', fillOpacity:0.07, dashArray:'6 4' } }
+        ).addTo(map);
 
         const bounds = gouvernoratLayer.getBounds();
         map.fitBounds(bounds, { padding:[30,30] });
@@ -614,40 +648,54 @@ function evaluatePixel(s) {
             +bounds.getWest().toFixed(6), +bounds.getSouth().toFixed(6),
             +bounds.getEast().toFixed(6), +bounds.getNorth().toFixed(6)
         ];
-        // Utiliser le vrai polygone pour les requêtes Sentinel
-        selectedGeom = feature.geometry;
 
-        // Calcul superficie approximative
-        const coords = feature.geometry.coordinates[0];
-        const cx = (bounds.getWest()+bounds.getEast())/2;
-        const cy = (bounds.getNorth()+bounds.getSouth())/2;
-        let area = 0;
-        for (let i=0,j=coords.length-1; i<coords.length; j=i++) {
-            area += (coords[j][0]+coords[i][0])*(coords[j][1]-coords[i][1]);
-        }
-        totalAreaHa = Math.abs(area/2 * 111320*111320 * Math.cos(cy*Math.PI/180) / 10000).toFixed(0);
+        // ✅ FIX: utiliser BBOX (pas geometry) pour éviter décalage Monastir
+        // Sentinel Hub projette parfois mal les géometries complexes multi-parties
+        selectedGeom = null; // Force bbox mode → plus stable
+
+        // Calcul superficie
+        let totalArea = 0;
+        const cy = (bounds.getNorth() + bounds.getSouth()) / 2;
+        selectedFeatures.forEach(f => {
+            const coords = f.geometry.coordinates[0];
+            let a = 0;
+            for (let i=0,j=coords.length-1; i<coords.length; j=i++)
+                a += (coords[j][0]+coords[i][0]) * (coords[j][1]-coords[i][1]);
+            totalArea += Math.abs(a/2);
+        });
+        totalAreaHa = Math.round(totalArea * 111320*111320 * Math.cos(cy*Math.PI/180) / 10000);
+
+        // Résolution dynamique
+        const res = calcResolution(currentBbox);
+        document.getElementById('govStatus').innerHTML =
+            `<span style="color:#69f0ae">${selectedFeatures.map(f=>f.properties.name).join(', ')}</span><br>` +
+            `📐 ~${totalAreaHa.toLocaleString()} ha · 🎯 ${res.resM}m/px · ${res.w}×${res.h}px`;
+
         showAreaDisplay();
     }
 
     function loadGouvernoratsGeoJSON(gj) {
         gouvernoratsGeoJSON = gj;
         const sel = document.getElementById('regionSelect');
-        sel.innerHTML = '<option value="">— Choisir un gouvernorat —</option>';
+        sel.innerHTML = '';
         gj.features.forEach((f,i) => {
             const opt = document.createElement('option');
             opt.value = i;
-            opt.textContent = f.properties.name || f.properties.nm_gouv_fr || 'Zone '+i;
+            opt.textContent = f.properties.name || f.properties.nm_gouv_fr || 'Zone '+(i+1);
             sel.appendChild(opt);
         });
         sel.disabled = false;
-        document.getElementById('govStatus').textContent = gj.features.length + ' gouvernorats chargés ✓';
-        document.getElementById('govStatus').style.color = '#69f0ae';
+        document.getElementById('govStatus').textContent = gj.features.length + ' gouvernorats disponibles';
+        document.getElementById('govStatus').style.color = 'var(--text-muted)';
     }
 
-    document.getElementById('regionSelect').onchange = function() {
-        if (!gouvernoratsGeoJSON || this.value === '') return;
-        setGouvernoratFeature(gouvernoratsGeoJSON.features[parseInt(this.value)]);
-    };
+    document.getElementById('regionSelect').addEventListener('change', function() {
+        if (!gouvernoratsGeoJSON) return;
+        const selected = Array.from(this.selectedOptions)
+            .map(o => gouvernoratsGeoJSON.features[parseInt(o.value)])
+            .filter(Boolean);
+        if (selected.length > 0) setGouvernoratFeatures(selected);
+    });
 
     // Charger les données intégrées au démarrage
     loadGouvernoratsGeoJSON(GOUVERNORATS_GEOJSON);
@@ -903,7 +951,7 @@ function evaluatePixel(s) {
         // compareRow désactivé — comparaison via panneau droit
         
         document.getElementById('resultsCard').style.display  = 'block';
-        document.getElementById('downloadBtn').style.display  = 'none';
+        document.getElementById('downloadBtns').style.display  = 'none';
 
         features.forEach(f => {
             const date   = f.properties.datetime.split('T')[0];
@@ -979,7 +1027,7 @@ function evaluatePixel(s) {
                         // Charger couche NDVI valeurs (pour infobulle + surfaces) en parallèle
                         loadNdviValueLayer(date, t);
 
-                        document.getElementById('downloadBtn').style.display = 'block';
+                        document.getElementById('downloadBtns').style.display = 'flex';
                         updateModeLabel();
                     } catch(err) {
                         setStatus('❌ '+err.message,'s-err');
@@ -987,8 +1035,8 @@ function evaluatePixel(s) {
                     eyeBtn.textContent = '👁';
                     eyeBtn.disabled    = false;
                 }
-                document.getElementById('downloadBtn').style.display =
-                    Object.keys(activeLayers).length>0 ? 'block' : 'none';
+                document.getElementById('downloadBtns').style.display =
+                    Object.keys(activeLayers).length>0 ? 'flex' : 'none';
             });
 
             // ── Listener L ──
@@ -1105,22 +1153,32 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        CONSTRUCTION COUCHE SENTINEL
     ═══════════════════════════════════════════════════════ */
-    async function buildLayer(date, token, evalscript) {
-        const bounds = selectedGeom
-            ? { geometry: selectedGeom }
-            : { bbox: currentBbox, properties: { crs:"http://www.opengis.net/def/crs/OGC/1.3/CRS84" } };
+    async function buildLayer(date, token, evalscript, asTiff=false) {
+        // Toujours utiliser bbox (plus stable que geometry pour Sentinel)
+        const boundsObj = {
+            bbox: currentBbox,
+            properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
+        };
+
+        // ── Résolution dynamique selon la surface ──
+        const res = calcResolution(currentBbox);
+
+        const fmt = asTiff
+            ? { type: "image/tiff", parameters: { compression: "deflate" } }
+            : { type: "image/png" };
 
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process',{
             method:'POST',
             headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
             body:JSON.stringify({
                 input: {
-                    bounds,
+                    bounds: boundsObj,
                     data:[{type:"sentinel-2-l2a",dataFilter:{timeRange:{from:`${date}T00:00:00Z`,to:`${date}T23:59:59Z`}}}]
                 },
                 output:{
-                    width:512, height:512,
-                    responses:[{identifier:"default",format:{type:"image/png"}}]
+                    width:  res.w,
+                    height: res.h,
+                    responses:[{identifier:"default", format: fmt}]
                 },
                 evalscript
             })
@@ -1132,7 +1190,8 @@ function evaluatePixel(s) {
             try { msg+=': '+(JSON.parse(txt).error?.message||txt.slice(0,120)); } catch { msg+=': '+txt.slice(0,120); }
             throw new Error(msg);
         }
-        if (!(r.headers.get('content-type')||'').includes('image')) {
+        const ct = r.headers.get('content-type') || '';
+        if (!ct.includes('image') && !ct.includes('tiff') && !ct.includes('octet')) {
             const txt = await r.text();
             throw new Error('Réponse non-image: '+txt.slice(0,120));
         }
@@ -1142,6 +1201,8 @@ function evaluatePixel(s) {
         const layer = L.imageOverlay(url, currentBounds, {opacity:0.88});
         layer._downloadUrl  = url;
         layer._downloadDate = date;
+        layer._isTiff       = asTiff;
+        layer._resInfo      = res;
         return layer;
     }
 
@@ -1265,6 +1326,31 @@ function evaluatePixel(s) {
         a.href = src._downloadUrl;
         a.download = `NDVI_${src._downloadDate||'export'}.png`;
         a.click();
+    });
+
+    document.getElementById('downloadTifBtn').addEventListener('click', async () => {
+        const src = Object.values(activeLayers).pop() || cLayerL;
+        if (!src) return;
+        const btn = document.getElementById('downloadTifBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spin"></span>Génération GeoTIFF...';
+        try {
+            const token  = await getToken();
+            const mode   = document.getElementById('modeSelect').value;
+            const script = EVALSCRIPTS[mode];
+            const date   = src._downloadDate;
+            const layer  = await buildLayer(date, token, script, true);
+            const a = document.createElement('a');
+            a.href     = layer._downloadUrl;
+            a.download = `NDVI_${date}_${mode}.tif`;
+            a.click();
+            const res = layer._resInfo;
+            setStatus(`✅ GeoTIFF ${res.w}×${res.h}px — ${res.resM}m/pixel`, 's-ok');
+        } catch(e) {
+            setStatus('❌ GeoTIFF: '+e.message, 's-err');
+        }
+        btn.disabled = false;
+        btn.innerHTML = '🗺️ Télécharger GeoTIFF';
     });
 
     document.getElementById('exportBtn').addEventListener('click', () => {
