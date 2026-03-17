@@ -426,24 +426,27 @@ function utmToWgs84(easting, northing, zone=32, northern=true) {
     return [+lng.toFixed(6), +lat.toFixed(6)];
 }
 
-// ── ZIP upload handler ──
-document.getElementById('zipInput').addEventListener('change', async function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const status = document.getElementById('govStatus');
-    status.textContent = '⏳ Lecture du fichier...';
-    status.style.color = 'var(--cyan)';
-    try {
-        const buf = await file.arrayBuffer();
-        const gj  = await parseShpZip(buf);
-        loadGouvernoratsGeoJSON(gj);
-        document.getElementById('uploadZone').style.borderColor = 'var(--green)';
-    } catch(err) {
-        status.textContent = '❌ ' + err.message;
-        status.style.color = '#ff8a80';
-    }
-    this.value = '';
-});
+// ── ZIP upload handler (désactivé — zipInput supprimé du DOM) ──
+const _zipEl = document.getElementById('zipInput');
+if (_zipEl) {
+    _zipEl.addEventListener('change', async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const status = document.getElementById('govStatus');
+        status.textContent = '⏳ Lecture du fichier...';
+        status.style.color = 'var(--cyan)';
+        try {
+            const buf = await file.arrayBuffer();
+            const gj  = await parseShpZip(buf);
+            loadGouvernoratsGeoJSON(gj);
+            document.getElementById('uploadZone').style.borderColor = 'var(--green)';
+        } catch(err) {
+            status.textContent = '❌ ' + err.message;
+            status.style.color = '#ff8a80';
+        }
+        this.value = '';
+    });
+}
 </script>
 
 <script>
@@ -649,9 +652,18 @@ function evaluatePixel(s) {
             +bounds.getEast().toFixed(6), +bounds.getNorth().toFixed(6)
         ];
 
-        // ✅ FIX: utiliser BBOX (pas geometry) pour éviter décalage Monastir
-        // Sentinel Hub projette parfois mal les géometries complexes multi-parties
-        selectedGeom = null; // Force bbox mode → plus stable
+        // Stocker la géométrie pour masquage (MultiPolygon de tous les gouvernorats)
+        if (selectedFeatures.length === 1) {
+            selectedGeom = selectedFeatures[0].geometry;
+        } else {
+            // Fusionner en MultiPolygon
+            const allRings = selectedFeatures.flatMap(f =>
+                f.geometry.type === 'Polygon'
+                    ? [f.geometry.coordinates]
+                    : f.geometry.coordinates
+            );
+            selectedGeom = { type: 'MultiPolygon', coordinates: allRings };
+        }
 
         // Calcul superficie
         let totalArea = 0;
@@ -923,9 +935,17 @@ function evaluatePixel(s) {
             const data  = await res.json();
             const cMax  = parseInt(document.getElementById('cRange').value);
             const lMax  = parseInt(document.getElementById('lRange').value);
-            lastFeatures = (data.features||[])
-                .filter(f=>(f.properties['eo:cloud_cover']??100)<cMax)
-                .slice(0,lMax);
+            // Dédupliquer par date (garder la moins nuageuse par jour)
+            const byDate = {};
+            (data.features||[]).forEach(f => {
+                const d = f.properties.datetime.split('T')[0];
+                const c = f.properties['eo:cloud_cover'] ?? 100;
+                if (c < cMax && (!byDate[d] || c < (byDate[d].properties['eo:cloud_cover']??100)))
+                    byDate[d] = f;
+            });
+            lastFeatures = Object.values(byDate)
+                .sort((a,b) => b.properties.datetime.localeCompare(a.properties.datetime))
+                .slice(0, lMax);
 
             if (!lastFeatures.length) {
                 setStatus('⚠️ Aucune image. Augmentez le seuil nuageux.','s-err');
@@ -1162,16 +1182,14 @@ function evaluatePixel(s) {
        CONSTRUCTION COUCHE SENTINEL
     ═══════════════════════════════════════════════════════ */
     async function buildLayer(date, token, evalscript, asTiff=false) {
-        // ── Résolution dynamique — plafonnée à 2500px (limite API free tier) ──
+        // ── Résolution dynamique — plafonnée à 2500px ──
         const dLng   = currentBbox[2] - currentBbox[0];
         const dLat   = currentBbox[3] - currentBbox[1];
         const cy     = (currentBbox[1] + currentBbox[3]) / 2;
         const wM     = dLng * 111320 * Math.cos(cy * Math.PI / 180);
         const hM     = dLat * 111320;
-        const TARGET_RES = 10; // 10m natif Sentinel-2
-        let   pixW   = Math.round(wM / TARGET_RES);
-        let   pixH   = Math.round(hM / TARGET_RES);
-        // Plafonner : free tier Sentinel Hub = max 2500×2500
+        let   pixW   = Math.round(wM / 10);
+        let   pixH   = Math.round(hM / 10);
         const MAX_PIX = 2500;
         if (pixW > MAX_PIX || pixH > MAX_PIX) {
             const scale = MAX_PIX / Math.max(pixW, pixH);
@@ -1182,18 +1200,19 @@ function evaluatePixel(s) {
         pixH = Math.max(64, pixH);
         const resM = Math.round(Math.max(wM, hM) / Math.max(pixW, pixH));
 
-        console.log(`buildLayer: ${date} bbox=${JSON.stringify(currentBbox)} size=${pixW}x${pixH} res=${resM}m`);
-
         const fmt = asTiff
             ? { type: "image/tiff", parameters: { compression: "deflate" } }
             : { type: "image/png" };
 
+        // ── Bounds: utiliser la géométrie pour masquer hors-polygone ──
+        // Si selectedGeom disponible → l'image sera découpée exactement sur les contours
+        const boundsInput = selectedGeom
+            ? { geometry: selectedGeom }
+            : { bbox: currentBbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } };
+
         const body = {
             input: {
-                bounds: {
-                    bbox: currentBbox,
-                    properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
-                },
+                bounds: boundsInput,
                 data: [{
                     type: "sentinel-2-l2a",
                     dataFilter: {
