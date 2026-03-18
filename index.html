@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>AgriManager — Agrimap Satellite Expert</title>
+    <title>AgriManager — Agrimap Satellite</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,80 +15,93 @@
             --white:#ffffff; --text-main:#e8edf4; --text-muted:#7a8fa8; --text-dim:#4d6278;
             --bg-page:#f0f4f8; --border:#dde4ef;
             --green:#27ae60; --green-dim:rgba(39,174,96,.15);
-            --amber:#f39c12; --red:#e74c3c;
             --font:'Plus Jakarta Sans',sans-serif;
         }
-        *{box-sizing:border-box;margin:0;padding:0;}
-        body{font-family:var(--font);display:flex;height:100vh;overflow:hidden;background:var(--bg-page);}
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font); display: flex; height: 100vh; background: var(--bg-page); overflow: hidden; }
 
         /* SIDEBAR */
-        #sidebar{width:400px;min-width:400px;background:var(--dark);display:flex;flex-direction:column;z-index:1000;box-shadow:4px 0 24px rgba(0,0,0,.35);}
-        #sidebar-header{padding:16px 20px 12px;background:var(--dark);border-bottom:1px solid var(--dark-border);flex-shrink:0;}
-        #sidebar-header .logo-text { color: var(--white); font-weight: 700; font-size: 20px; letter-spacing: -0.5px; }
-        #sidebar-header .module-tag{margin-top:5px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);opacity:.9;}
-        #sidebar-body{flex:1;overflow-y:auto;padding:12px;}
+        #sidebar { width: 420px; min-width: 420px; background: var(--dark); display: flex; flex-direction: column; z-index: 1000; box-shadow: 4px 0 24px rgba(0,0,0,.35); border-right: 1px solid var(--dark-border); }
+        #sidebar-header { padding: 16px 20px; border-bottom: 1px solid var(--dark-border); }
+        #sidebar-header h1 { color: var(--white); font-size: 20px; font-weight: 700; }
+        #sidebar-body { flex: 1; overflow-y: auto; padding: 15px; }
+
+        .card { background: var(--dark-mid); border: 1px solid var(--dark-border); border-radius: 12px; padding: 14px; margin-bottom: 15px; }
+        .card-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
+        .ct-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); }
+
+        /* FORM ELEMENTS */
+        select, input { width: 100%; padding: 10px; background: var(--dark-light); border: 1px solid var(--dark-border); border-radius: 8px; color: var(--white); font-size: 13px; margin-bottom: 10px; outline: none; }
         
-        .card{background:var(--dark-mid);border:1px solid var(--dark-border);border-radius:10px;padding:12px;margin-bottom:9px;}
-        .card-title{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:9px;display:flex;align-items:center;gap:6px;}
-        .ct-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);flex-shrink:0;}
-        
-        select,input[type=date]{width:100%;padding:8px 10px;background:var(--dark-light);border:1px solid var(--dark-border);border-radius:6px;color:var(--text-main);font-family:var(--font);font-size:13px;margin-bottom:6px;outline:none;}
-        
-        .custom-checkbox { display: flex; align-items: center; gap: 10px; color: var(--text-main); font-size: 13px; cursor: pointer; padding: 5px 0; }
-        
-        /* GRAPH CONTAINER */
-        #chart-container { height: 180px; width: 100%; margin-top: 10px; }
+        .custom-checkbox { display: flex; align-items: center; gap: 10px; color: var(--text-main); font-size: 13px; cursor: pointer; padding: 8px 0; border-bottom: 1px solid var(--dark-border); }
+        .custom-checkbox:last-child { border-bottom: none; }
+
+        /* CHART */
+        #chart-wrap { height: 200px; margin-top: 10px; }
 
         /* MAP AREA */
-        #map-area{flex:1;display:flex;flex-direction:column;overflow:hidden; position: relative;}
-        #map{flex:1; background: #0b0f15;}
+        #map-area { flex: 1; position: relative; }
+        #map { width: 100%; height: 100%; background: #0b0f15; }
 
-        /* RIGHT PANEL (COMPARISON) */
-        #right-panel{width:0;min-width:0;background:var(--dark);border-left:1px solid var(--dark-border);display:flex;flex-direction:column;z-index:1000;overflow:hidden;transition: width 0.3s ease;}
-        #right-panel.open{width:300px;min-width:300px;}
-        .rp-img-box{width:100%; aspect-ratio: 1.2; background:var(--dark-light); border-radius:8px; overflow:hidden; position: relative; margin-bottom: 10px;}
-        /* Correction image tronquée : on s'assure que l'image remplit sans clip */
-        .rp-img-box img { width: 100%; height: 100%; object-fit: contain; }
+        /* RIGHT PANEL (COMPARISON & LEGEND) */
+        #right-panel { width: 320px; background: var(--dark); border-left: 1px solid var(--dark-border); display: flex; flex-direction: column; padding: 15px; color: var(--white); overflow-y: auto; }
+        .rp-slot { margin-bottom: 20px; }
+        .rp-slot-label { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; }
+        
+        /* Correction image tronquée */
+        .rp-img-box { 
+            width: 100%; aspect-ratio: 1.5; background: var(--dark-light); border-radius: 8px; 
+            overflow: visible; position: relative; display: flex; align-items: center; justify-content: center;
+        }
+        .rp-img-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
-        .btn-action { background: var(--cyan); color: var(--dark); border: none; padding: 10px; border-radius: 6px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 10px;}
+        .legend-row { display: flex; align-items: center; gap: 10px; font-size: 12px; margin-bottom: 6px; color: var(--text-main); }
+        .dot { width: 12px; height: 12px; border-radius: 3px; }
+
+        /* FILTERS BAR */
+        .filter-bar { display: flex; gap: 10px; margin-bottom: 10px; }
+        .filter-btn { flex: 1; padding: 6px; font-size: 11px; background: var(--dark-light); border: 1px solid var(--dark-border); color: var(--text-muted); border-radius: 4px; cursor: pointer; }
+        .filter-btn.active { background: var(--cyan-dim); border-color: var(--cyan); color: var(--cyan); }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
     <div id="sidebar-header">
-        <div class="logo-text">AgriManager</div>
-        <div class="module-tag">Analyse Satellite & NDVI</div>
+        <h1>AgriManager Satellite</h1>
+        <div style="color: var(--cyan); font-size: 10px; font-weight: 600;">MODULE EXPERT v4.2</div>
     </div>
     
     <div id="sidebar-body">
         <div class="card">
-            <div class="card-title"><div class="ct-dot"></div>Paramètres d'analyse</div>
-            <select id="parcel-select">
-                <option value="">Sélectionner une parcelle...</option>
-                <option value="p1">Ferme Nord - Blé (Hectares: 12.5)</option>
-                <option value="p2">Plaine Sud - Orge (Hectares: 8.2)</option>
+            <div class="card-title"><div class="ct-dot"></div>Sélection Parcelle</div>
+            <select id="p-select">
+                <option value="">-- Choisir une parcelle --</option>
+                <option value="p1">Ferme Mornag - Blé (14.2 Ha)</option>
+                <option value="p2">Mateur Zone B - Orge (8.5 Ha)</option>
             </select>
             
             <label class="custom-checkbox">
-                <input type="checkbox" id="check-tunisie" onchange="toggleTunisiaView()">
-                Toute la Tunisie (Mode Global)
+                <input type="checkbox" id="check-tunisie-main" onchange="toggleTunisieMode()">
+                <b>Toute la Tunisie (Global NDVI)</b>
             </label>
         </div>
 
         <div class="card">
-            <div class="card-title"><div class="ct-dot"></div>Évolution NDVI</div>
-            <div id="chart-container">
-                <canvas id="ndviChart"></canvas>
+            <div class="card-title"><div class="ct-dot"></div>Analyse Temporelle NDVI</div>
+            <div id="chart-wrap">
+                <canvas id="mainChart"></canvas>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-title"><div class="ct-dot"></div>Historique des captures</div>
-            <div id="image-list">
-                <div style="font-size: 11px; color: var(--text-dim);">En attente de sélection...</div>
+            <div class="card-title"><div class="ct-dot"></div>Outils de Dessin & Surface</div>
+            <div id="surface-info" style="color: var(--cyan); font-weight: 700; font-size: 16px; margin-bottom: 10px;">0.00 Ha</div>
+            <div class="filter-bar">
+                <button class="filter-btn active">Vrai Couleur</button>
+                <button class="filter-btn">NDVI</button>
+                <button class="filter-btn">EVI</button>
             </div>
-            <button class="btn-action" onclick="toggleComparison()">Comparer les périodes</button>
         </div>
     </div>
 </div>
@@ -97,89 +110,110 @@
     <div id="map"></div>
 </div>
 
-<div id="right-panel" id="comparison-panel">
-    <div style="padding: 15px;">
-        <h3 style="color: var(--white); font-size: 12px; text-transform: uppercase; margin-bottom: 15px;">Comparaison Satellite</h3>
-        
-        <div class="rp-slot">
-            <div style="color: var(--text-muted); font-size: 10px; margin-bottom: 5px;">IMAGE RÉFÉRENCE (T0)</div>
-            <div class="rp-img-box" id="box-ref">
-                <div style="color: var(--text-dim); font-size: 11px; text-align: center;">Aucune sélection</div>
-            </div>
+<div id="right-panel">
+    <div class="rp-slot">
+        <div class="rp-slot-label">VUE ACTUELLE (T1)</div>
+        <div class="rp-img-box" id="box-main">
+            <span style="color:var(--text-dim); font-size:11px;">Sélectionnez une date</span>
         </div>
+    </div>
 
-        <div class="rp-slot">
-            <div style="color: var(--text-muted); font-size: 10px; margin-bottom: 5px;">IMAGE ACTUELLE (T1)</div>
-            <div class="rp-img-box" id="box-current">
-                 <div style="color: var(--text-dim); font-size: 11px; text-align: center;">Aucune sélection</div>
-            </div>
+    <div class="rp-slot">
+        <div class="rp-slot-label">RÉFÉRENCE COMPARAISON (T0)</div>
+        <div class="rp-img-box" id="box-ref">
+             <span style="color:var(--text-dim); font-size:11px;">Appuyez sur 'R' pour fixer</span>
         </div>
+    </div>
+
+    <div class="card" style="background: transparent; border: 1px solid var(--dark-border);">
+        <div class="card-title">Légende NDVI</div>
+        <div class="legend-row"><div class="dot" style="background:#006400"></div> Vigueur Haute (0.8 - 1.0)</div>
+        <div class="legend-row"><div class="dot" style="background:#228b22"></div> Vigueur Moyenne (0.5 - 0.7)</div>
+        <div class="legend-row"><div class="dot" style="background:#ffcc00"></div> Stress Hydrique (0.3 - 0.4)</div>
+        <div class="legend-row"><div class="dot" style="background:#cc2200"></div> Sol Nu / Urbain (< 0.2)</div>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
 
 <script>
-    // Initialisation de la carte
-    var map = L.map('map').setView([34.0, 9.5], 7); // Centré sur la Tunisie
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    // 1. Initialisation Carte
+    var map = L.map('map', {zoomControl: false}).setView([36.5, 10.2], 8);
+    L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+        maxZoom: 20, subdomains:['mt0','mt1','mt2','mt3']
+    }).addTo(map);
 
-    let ndviChart;
+    // 2. Outils de dessin pour calcul de surface
+    var drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    var drawControl = new L.Control.Draw({
+        draw: { polygon: true, polyline: false, rectangle: true, circle: false, marker: false },
+        edit: { featureGroup: drawnItems }
+    });
+    map.addControl(drawControl);
 
-    // Fonction pour gérer la vue globale Tunisie (Correction du rognage)
-    function toggleTunisiaView() {
-        const isGlobal = document.getElementById('check-tunisie').checked;
-        if(isGlobal) {
+    map.on(L.Draw.Event.CREATED, function (event) {
+        var layer = event.layer;
+        drawnItems.clearLayers();
+        drawnItems.addLayer(layer);
+        var area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+        document.getElementById('surface-info').innerHTML = (area / 10000).toFixed(2) + " Ha";
+    });
+
+    // 3. Gestion du Mode Tunisie (SANS ROGNAGE)
+    function toggleTunisieMode() {
+        const isChecked = document.getElementById('check-tunisie-main').checked;
+        const mainBox = document.getElementById('box-main');
+        
+        if(isChecked) {
             map.flyTo([34.0, 9.5], 7);
-            // Ici, on enlèverait les filtres de clipping sur les couches images
-            console.log("Vue Tunisie activée - Suppression des limites de parcelle");
+            // On retire les contraintes de taille pour l'affichage de l'image
+            mainBox.style.aspectRatio = "auto";
+            mainBox.style.height = "250px";
+            mainBox.innerHTML = '<img src="https://via.placeholder.com/600x800?text=NDVI+TUNISIE+COMPLET" style="width:100%; height:100%; object-fit:contain;">';
         } else {
             map.setZoom(13);
+            mainBox.style.aspectRatio = "1.5";
+            mainBox.innerHTML = '<span style="color:var(--text-dim); font-size:11px;">Vue Parcelle Active</span>';
         }
     }
 
-    // Fonction pour ouvrir/fermer le panneau de comparaison
-    function toggleComparison() {
-        const panel = document.getElementById('right-panel');
-        panel.classList.toggle('open');
-    }
-
-    // Initialisation du Graphique NDVI (Réintégration de la fonctionnalité)
-    function initNDVIChart() {
-        const ctx = document.getElementById('ndviChart').getContext('2d');
-        ndviChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin'],
-                datasets: [{
-                    label: 'Indice NDVI',
-                    data: [0.2, 0.35, 0.65, 0.82, 0.55, 0.25],
-                    borderColor: '#00b8d9',
-                    backgroundColor: 'rgba(0, 184, 217, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { min: 0, max: 1, grid: { color: '#344563' }, ticks: { color: '#7a8fa8' } },
-                    x: { grid: { display: false }, ticks: { color: '#7a8fa8' } }
-                }
+    // 4. Graphique NDVI Temporel
+    const ctx = document.getElementById('mainChart').getContext('2d');
+    const myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Oct', 'Nov', 'Déc', 'Jan', 'Fév', 'Mar', 'Avr'],
+            datasets: [{
+                label: 'NDVI Moyen',
+                data: [0.15, 0.22, 0.45, 0.68, 0.81, 0.75, 0.40],
+                borderColor: '#00b8d9',
+                backgroundColor: 'rgba(0, 184, 217, 0.1)',
+                fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { min: 0, max: 1, grid: { color: '#344563' }, ticks: { color: '#7a8fa8', size: 10 } },
+                x: { grid: { display: false }, ticks: { color: '#7a8fa8', size: 10 } }
             }
-        });
-    }
+        }
+    });
 
-    window.onload = initNDVIChart;
+    // 5. Raccourcis Clavier (Fonctionnalité Comparaison)
+    window.addEventListener('keydown', function(e) {
+        if(e.key.toLowerCase() === 'r') {
+            const currentImg = document.querySelector('#box-main img');
+            if(currentImg) {
+                document.getElementById('box-ref').innerHTML = `<img src="${currentImg.src}" style="width:100%; height:100%; object-fit:contain;">`;
+            }
+        }
+    });
 
-    // Simulation de sélection d'image pour alimenter la comparaison
-    function selectImageForComparison(url, target) {
-        const box = document.getElementById(target);
-        box.innerHTML = `<img src="${url}" alt="NDVI View">`;
-    }
 </script>
-
 </body>
 </html>
