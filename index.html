@@ -1142,12 +1142,23 @@ function evaluatePixel(s) {
         });
     }
 
+// ✅ BUGFIX APPLIQUÉ:
+// Problème: enableTooltip recevait currentBounds qui changeait au fil du temps
+// Quand plusieurs couches NDVI-valeurs étaient actives, elles utilisaient les MÊMES bounds
+// Conséquence: L'infobulle NDVI s'affichait aux mauvaises coordonnées
+// Solution: Passer à enableTooltip les bounds CORRECTS calculés à partir de currentBbox
+//           pour la date/région spécifique chargée
+
     // Charger une couche NDVI valeurs en arrière-plan pour l'infobulle
     async function loadNdviValueLayer(date, token) {
         try {
             const layer = await buildLayer(date, token, EVALSCRIPT_NDVI_VALUE);
-            // Récupérer l'URL blob de cette couche
-            enableTooltip(layer._downloadUrl, currentBounds);
+            // ✅ BUGFIX: Créer les bounds corrects pour cette date spécifique
+            const bounds = L.latLngBounds(
+                [currentBbox[1], currentBbox[0]],  // SW: [lat, lng]
+                [currentBbox[3], currentBbox[2]]   // NE: [lat, lng]
+            );
+            enableTooltip(layer._downloadUrl, bounds);
         } catch(e) {
             console.warn('NDVI value layer failed:', e.message);
         }
@@ -2371,8 +2382,12 @@ function evaluatePixel(s) {
     async function loadNdviValueLayer(date, token) {
         try {
             const layer = await buildLayer(date, token, EVALSCRIPT_NDVI_VALUE);
-            // Récupérer l'URL blob de cette couche
-            enableTooltip(layer._downloadUrl, currentBounds);
+            // ✅ BUGFIX: Créer les bounds corrects pour cette date spécifique
+            const bounds = L.latLngBounds(
+                [currentBbox[1], currentBbox[0]],  // SW: [lat, lng]
+                [currentBbox[3], currentBbox[2]]   // NE: [lat, lng]
+            );
+            enableTooltip(layer._downloadUrl, bounds);
         } catch(e) {
             console.warn('NDVI value layer failed:', e.message);
         }
@@ -2672,13 +2687,13 @@ function evaluatePixel(s) {
             const date   = src._downloadDate;
 
             // ✅ GeoTIFF : toujours bbox (l'API rejette geometry pour TIFF)
-            // Résolution dynamique
+            // Résolution dynamique — cohérent avec buildLayer
             const dLng = currentBbox[2]-currentBbox[0], dLat = currentBbox[3]-currentBbox[1];
             const cy   = (currentBbox[1]+currentBbox[3])/2;
             const wM   = dLng*111320*Math.cos(cy*Math.PI/180), hM = dLat*111320;
             let pixW = Math.round(wM/10), pixH = Math.round(hM/10);
-            const MAX = 2500;
-            if (pixW>MAX||pixH>MAX){const s=MAX/Math.max(pixW,pixH);pixW=Math.round(pixW*s);pixH=Math.round(pixH*s);}
+            const MAX_PIX = 2500;
+            if (pixW>MAX_PIX||pixH>MAX_PIX){const s=MAX_PIX/Math.max(pixW,pixH);pixW=Math.round(pixW*s);pixH=Math.round(pixH*s);}
             pixW = Math.max(64,pixW); pixH = Math.max(64,pixH);
             const resM = Math.round(Math.max(wM,hM)/Math.max(pixW,pixH));
 
