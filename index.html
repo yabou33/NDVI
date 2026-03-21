@@ -2682,6 +2682,20 @@ function evaluatePixel(s) {
             pixW = Math.max(64,pixW); pixH = Math.max(64,pixH);
             const resM = Math.round(Math.max(wM,hM)/Math.max(pixW,pixH));
 
+            // Evalscript pour GeoTIFF : retourne valeurs NDVI brutes (float entre -1 et +1)
+            const evalscriptNDVI = `//VERSION=3
+function setup() { 
+    return { 
+        input: [{bands: ["B04", "B08", "dataMask"]}], 
+        output: { bands: 1, sampleType: "FLOAT32" } 
+    }; 
+}
+function evaluatePixel(sample) {
+    if (sample.dataMask === 0) return [NaN];
+    let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0000001);
+    return [ndvi];
+}`;
+
             const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -2702,7 +2716,7 @@ function evaluatePixel(s) {
                             parameters: { compression: "deflate" }
                         }}]
                     },
-                    evalscript: EVALSCRIPTS[mode]
+                    evalscript: evalscriptNDVI
                 })
             });
 
