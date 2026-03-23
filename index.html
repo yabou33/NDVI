@@ -878,7 +878,7 @@ function evaluatePixel(s) {
         if (px < 0 || px > 1 || py < 0 || py > 1) return null;
         const x   = Math.floor(px * ndviLayerCanvas.width);
         const y   = Math.floor(py * ndviLayerCanvas.height);
-        const ctx = ndviLayerCanvas.getContext('2d');
+        const ctx = ndviLayerCanvas.getContext('2d', { willReadFrequently: true });
         const [r,,, a] = ctx.getImageData(x, y, 1, 1).data;
         if (a < 10) return null;  // pixel transparent = hors parcelle
         // Décoder : NDVI = R/255 * 2 - 1
