@@ -610,9 +610,9 @@ function evaluatePixel(s) {
         const cy   = (bbox[1] + bbox[3]) / 2;
         const widthM  = dLng * 111320 * Math.cos(cy * Math.PI / 180);
         const heightM = dLat * 111320;
-        // Sentinel-2 natif = 10m. On cible max 4096px, min 256px
-        const pixW = Math.min(4096, Math.max(256, Math.round(widthM  / 10)));
-        const pixH = Math.min(4096, Math.max(256, Math.round(heightM / 10)));
+        // Sentinel-2 natif = 10m. On cible max 2500px (limite API), min 256px
+        const pixW = Math.min(2500, Math.max(256, Math.round(widthM  / 10)));
+        const pixH = Math.min(2500, Math.max(256, Math.round(heightM / 10)));
         const resM = Math.round(Math.max(widthM, heightM) / Math.max(pixW, pixH));
         return { w: pixW, h: pixH, resM };
     }
@@ -798,7 +798,7 @@ function evaluatePixel(s) {
             const canvas = document.createElement('canvas');
             canvas.width  = img.width;
             canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             ctx.drawImage(img, 0, 0);
             ndviLayerCanvas = canvas;
             ndviBounds      = bounds;
