@@ -610,9 +610,9 @@ function evaluatePixel(s) {
         const cy   = (bbox[1] + bbox[3]) / 2;
         const widthM  = dLng * 111320 * Math.cos(cy * Math.PI / 180);
         const heightM = dLat * 111320;
-        // Sentinel-2 natif = 10m. On cible max 2500px (limite API), min 256px
-        const pixW = Math.min(2500, Math.max(256, Math.round(widthM  / 10)));
-        const pixH = Math.min(2500, Math.max(256, Math.round(heightM / 10)));
+        // Sentinel-2 natif = 10m. On cible max 4096px, min 256px
+        const pixW = Math.min(4096, Math.max(256, Math.round(widthM  / 10)));
+        const pixH = Math.min(4096, Math.max(256, Math.round(heightM / 10)));
         const resM = Math.round(Math.max(widthM, heightM) / Math.max(pixW, pixH));
         return { w: pixW, h: pixH, resM };
     }
@@ -798,7 +798,7 @@ function evaluatePixel(s) {
             const canvas = document.createElement('canvas');
             canvas.width  = img.width;
             canvas.height = img.height;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0);
             ndviLayerCanvas = canvas;
             ndviBounds      = bounds;
@@ -878,7 +878,7 @@ function evaluatePixel(s) {
         if (px < 0 || px > 1 || py < 0 || py > 1) return null;
         const x   = Math.floor(px * ndviLayerCanvas.width);
         const y   = Math.floor(py * ndviLayerCanvas.height);
-        const ctx = ndviLayerCanvas.getContext('2d', { willReadFrequently: true });
+        const ctx = ndviLayerCanvas.getContext('2d');
         const [r,,, a] = ctx.getImageData(x, y, 1, 1).data;
         if (a < 10) return null;  // pixel transparent = hors parcelle
         // Décoder : NDVI = R/255 * 2 - 1
