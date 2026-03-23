@@ -135,8 +135,7 @@
                 🇹🇳 Toute la Tunisie
             </label>
 
-           
-            <select id="regionSelect" multiple size="6" style="height:auto;min-height:110px;border-radius:7px;">
+                      <select id="regionSelect" multiple size="6" style="height:auto;min-height:110px;border-radius:7px;">
             </select>
             <p style="font-size:10px;color:var(--text-dim);margin-top:4px;">
                 Ctrl+clic pour sélectionner plusieurs gouvernorats
@@ -1199,9 +1198,7 @@ function evaluatePixel(s) {
     /* ═══════════════════════════════════════════════════════
        COMPARAISON CÔTE-À-CÔTE
     ═══════════════════════════════════════════════════════ */
-;
 
-;
 
     function clearAllLayers() {
         Object.values(activeLayers).forEach(l => map.removeLayer(l));
@@ -1218,1232 +1215,9 @@ function evaluatePixel(s) {
        CONSTRUCTION COUCHE SENTINEL
     ═══════════════════════════════════════════════════════ */
 
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>AgriManager — Agrimap Satellite</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --dark:#1a2332; --dark-mid:#232f42; --dark-light:#2d3d52; --dark-border:#344563;
-            --cyan:#00b8d9; --cyan-light:#33cae3; --cyan-dim:rgba(0,184,217,.15);
-            --white:#ffffff; --text-main:#e8edf4; --text-muted:#7a8fa8; --text-dim:#4d6278;
-            --bg-page:#f0f4f8; --border:#dde4ef;
-            --green:#27ae60; --green-dim:rgba(39,174,96,.15);
-            --amber:#f39c12; --red:#e74c3c;
-            --font:'Plus Jakarta Sans',sans-serif;
-        }
-        *{box-sizing:border-box;margin:0;padding:0;}
-        body{font-family:var(--font);display:flex;height:100vh;overflow:hidden;background:var(--bg-page);}
-
-        /* SIDEBAR */
-        #sidebar{width:400px;min-width:400px;background:var(--dark);display:flex;flex-direction:column;z-index:1000;box-shadow:4px 0 24px rgba(0,0,0,.35);}
-        #sidebar-header{padding:16px 20px 12px;background:var(--dark);border-bottom:1px solid var(--dark-border);flex-shrink:0;}
-        #sidebar-header img{height:36px;width:auto;display:block;}
-        #sidebar-header .module-tag{margin-top:5px;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);opacity:.9;}
-        #sidebar-body{flex:1;overflow-y:auto;padding:12px;}
-        #sidebar-body::-webkit-scrollbar{width:3px;}
-        #sidebar-body::-webkit-scrollbar-thumb{background:var(--dark-border);border-radius:2px;}
-        .card{background:var(--dark-mid);border:1px solid var(--dark-border);border-radius:10px;padding:12px;margin-bottom:9px;}
-        .card-title{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:9px;display:flex;align-items:center;gap:6px;}
-        .ct-dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);flex-shrink:0;}
-        select,input[type=date]{width:100%;padding:8px 10px;background:var(--dark-light);border:1px solid var(--dark-border);border-radius:6px;color:var(--text-main);font-family:var(--font);font-size:13px;margin-bottom:6px;outline:none;transition:border-color .2s;}
-        select:focus,input[type=date]:focus{border-color:var(--cyan);}
-        select option{background:var(--dark-mid);}
-        .date-row{display:flex;gap:6px;}
-        .date-row input{margin:0;}
-        .range-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin:6px 0 3px;}
-        .range-label strong{color:var(--cyan);font-weight:600;}
-        input[type=range]{width:100%;accent-color:var(--cyan);margin-bottom:5px;cursor:pointer;}
-        .btn{width:100%;padding:9px 14px;border-radius:7px;border:none;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;color:white;margin-top:5px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px;letter-spacing:.02em;}
-        .btn:disabled{opacity:.45;cursor:not-allowed;}
-        .btn-cyan{background:var(--cyan);color:var(--dark);} .btn-cyan:hover{background:var(--cyan-light);}
-        .btn-green{background:var(--green);} .btn-green:hover{background:#219a52;}
-        .btn-slate{background:var(--dark-light);border:1px solid var(--dark-border);} .btn-slate:hover{background:var(--dark-border);}
-        .btn-amber{background:var(--amber);color:var(--dark);} .btn-amber:hover{background:#e08e0b;}
-        #status{font-size:11.5px;padding:8px 11px;border-radius:6px;margin-top:7px;display:none;line-height:1.5;font-weight:500;}
-        .s-err{background:rgba(231,76,60,.15);color:#ff8a80;border:1px solid rgba(231,76,60,.3);display:block!important;}
-        .s-ok{background:var(--green-dim);color:#69f0ae;border:1px solid rgba(39,174,96,.3);display:block!important;}
-        .s-info{background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(0,184,217,.3);display:block!important;}
-        .stats-box{background:var(--dark-light);border:1px solid var(--dark-border);border-radius:7px;padding:10px 12px;font-size:12px;color:var(--text-main);margin-top:7px;line-height:1.9;}
-        .img-item{background:var(--dark-light);border:1px solid var(--dark-border);border-radius:7px;padding:8px 10px;margin-top:5px;display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-main);transition:border-color .15s,background .15s;}
-        .img-item:hover{border-color:var(--cyan);background:rgba(0,184,217,.07);}
-        .date-label{flex:1;font-weight:500;}
-        .cloud-tag{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;}
-        .ctag-ok{background:var(--green-dim);color:#69f0ae;}
-        .ctag-mid{background:rgba(243,156,18,.15);color:#ffd54f;}
-        .ctag-bad{background:rgba(231,76,60,.15);color:#ff8a80;}
-        .eye-btn{background:transparent;border:none;cursor:pointer;font-size:15px;opacity:.45;transition:.2s;padding:2px 4px;border-radius:4px;}
-        .eye-btn:hover{opacity:1;background:var(--cyan-dim);} .eye-btn.vis{opacity:1;color:var(--cyan);}
-        .side-btn{font-size:10px;padding:2px 7px;border-radius:4px;cursor:pointer;font-weight:700;font-family:var(--font);transition:.15s;}
-        .sel-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;}
-        .sel-R{background:#9c27b0;color:white;}
-        .legend-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:5px;}
-        .legend-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);}
-        .dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
-        #chartContainer{height:130px;width:100%;margin-top:7px;background:var(--dark-light);border-radius:6px;padding:4px;}
-
-        /* Upload zone */
-        .upload-zone{border:1.5px dashed var(--dark-border);border-radius:7px;padding:12px;text-align:center;cursor:pointer;transition:.2s;margin-top:7px;}
-        .upload-zone:hover{border-color:var(--cyan);background:var(--cyan-dim);}
-        .upload-zone input{display:none;}
-        .upload-zone p{font-size:11px;color:var(--text-dim);margin-top:3px;}
-        #govStatus{font-size:10.5px;margin-top:5px;color:var(--text-muted);}
-
-        /* MAP */
-        #map-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-        #topbar{height:46px;background:var(--dark);border-bottom:1px solid var(--dark-border);display:flex;align-items:center;padding:0 18px;gap:6px;flex-shrink:0;}
-        .topbar-tab{padding:5px 14px;border-radius:6px;font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;transition:.2s;border:1px solid transparent;}
-        .topbar-tab.active{color:var(--cyan);background:var(--cyan-dim);border-color:rgba(0,184,217,.3);}
-        .topbar-sep{flex:1;}
-        #modeLabel{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);background:var(--cyan-dim);border:1px solid rgba(0,184,217,.25);padding:4px 11px;border-radius:5px;display:none;}
-        #map-container{flex:1;display:flex;position:relative;}
-        #map{flex:1;}
-
-        /* RIGHT PANEL */
-        #right-panel{width:0;min-width:0;background:var(--dark);border-left:1px solid var(--dark-border);display:flex;flex-direction:column;z-index:1000;overflow:hidden;transition:width .35s cubic-bezier(.4,0,.2,1),min-width .35s;box-shadow:-3px 0 20px rgba(0,0,0,.3);flex-shrink:0;}
-        #right-panel.open{width:260px;min-width:260px;}
-        #rp-header{padding:13px 14px 11px;border-bottom:1px solid var(--dark-border);flex-shrink:0;}
-        #rp-header h3{font-size:11px;font-weight:700;color:var(--text-main);letter-spacing:.04em;text-transform:uppercase;}
-        #rp-header p{font-size:10px;color:var(--text-dim);margin-top:2px;}
-        #rp-body{flex:1;overflow-y:auto;padding:12px;}
-        #rp-body::-webkit-scrollbar{width:3px;}
-        #rp-body::-webkit-scrollbar-thumb{background:var(--dark-border);}
-        .rp-slot{margin-bottom:14px;}
-        .rp-slot-label{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;display:flex;align-items:center;gap:5px;}
-        .rp-slot-label span{color:var(--cyan);font-weight:700;}
-        .rp-img-box{width:100%;aspect-ratio:1;background:var(--dark-light);border-radius:8px;overflow:hidden;border:1px solid var(--dark-border);display:flex;align-items:center;justify-content:center;}
-        .rp-img-box img{width:100%;height:100%;object-fit:cover;display:block;}
-        .rp-empty{color:var(--text-dim);font-size:11px;text-align:center;padding:16px;line-height:1.6;}
-        .rp-loading{color:var(--cyan);font-size:11px;display:flex;align-items:center;gap:6px;}
-        #rp-legend{margin-top:10px;padding-top:10px;border-top:1px solid var(--dark-border);}
-        .rp-legend-title{font-size:9.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px;}
-        .rp-legend-row{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text-muted);margin-bottom:4px;}
-        .rp-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0;}
-
-        /* SBS */
-        .leaflet-sbs-range{cursor:ew-resize;background:transparent;position:absolute;top:50%;width:100%;z-index:999;-webkit-appearance:none;display:block;margin:0;height:100%;padding:0;outline:none;left:0}
-        .leaflet-sbs-divider{background:var(--cyan);bottom:0;cursor:ew-resize;left:50%;margin-left:-2px;position:absolute;top:0;width:3px;z-index:999;box-shadow:0 0 12px rgba(0,184,217,.6)}
-        .leaflet-sbs-range::-webkit-slider-thumb{-webkit-appearance:none;background:var(--cyan);border-radius:50%;cursor:ew-resize;height:40px;width:40px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,.4)}
-        .spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(0,184,217,.3);border-top-color:var(--cyan);border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:4px;}
-        @keyframes sp{to{transform:rotate(360deg)}}
-    </style>
-</head>
-<body>
-
-<div id="ndvi-tooltip" style="position:fixed;background:rgba(26,35,50,.96);color:white;padding:7px 12px;border-radius:7px;font-size:12px;pointer-events:none;z-index:9999;display:none;line-height:1.6;font-family:'Plus Jakarta Sans',sans-serif;border:1px solid rgba(0,184,217,.3);box-shadow:0 4px 16px rgba(0,0,0,.4);"></div>
-
-<div id="sidebar">
-    <div id="sidebar-header">
-        <img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/" alt="AgriManager">
-        <div class="module-tag">◈ Agrimap &middot; Vue Satellite</div>
-    </div>
-
-    <div id="sidebar-body">
-
-        <!-- Zone / Gouvernorat -->
-        <div class="card">
-            <div class="card-title"><span class="ct-dot"></span>Gouvernorat</div>
-
-            <!-- Case Toute la Tunisie -->
-            <label id="allTunisiaLabel" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:7px 10px;background:var(--dark-light);border:1px solid var(--dark-border);border-radius:6px;margin-bottom:7px;font-size:12px;color:var(--text-main);">
-                <input type="checkbox" id="allTunisia" style="width:14px;height:14px;accent-color:var(--cyan);margin:0;">
-                🇹🇳 Toute la Tunisie
-            </label>
-
-            <!-- Toute la Tunisie -->
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:7px 10px;background:var(--dark-light);border:1px solid var(--dark-border);border-radius:7px;margin-bottom:7px;font-size:12px;color:var(--text-main);">
-                <input type="checkbox" id="allTunisia" style="width:15px;height:15px;accent-color:var(--cyan);margin:0;">
-                <span>🇹🇳 Toute la Tunisie</span>
-                <span style="font-size:10px;color:var(--text-dim);margin-left:auto;">bbox</span>
-            </label>
-            <select id="regionSelect" multiple size="6" style="height:auto;min-height:110px;border-radius:7px;">
-            </select>
-            <p style="font-size:10px;color:var(--text-dim);margin-top:4px;">
-                Ctrl+clic pour sélectionner plusieurs gouvernorats
-            </p>
-            <div id="govStatus" style="font-size:11px;color:var(--text-muted);margin-top:4px;">Chargement des données...</div>
-
-<!-- ZIP upload désactivé temporairement -->
-
-            <div id="areaDisplay" class="stats-box" style="display:none"></div>
-            <p style="font-size:11px;color:var(--text-dim);margin-top:7px;">✏️ Dessinez une parcelle sur la carte pour affiner la zone</p>
-        </div>
-
-        <!-- Période -->
-        <div class="card">
-            <div class="card-title"><span class="ct-dot"></span>Période & filtres</div>
-            <div class="date-row">
-                <input type="date" id="dateStart" value="2025-01-01">
-                <input type="date" id="dateEnd"   value="2026-03-16">
-            </div>
-            <div class="range-label"><span>Nuages max</span><strong><span id="cVal">30</span>%</strong></div>
-            <input type="range" id="cRange" min="0" max="100" value="30" oninput="document.getElementById('cVal').textContent=this.value">
-            <div class="range-label"><span>Images max</span><strong><span id="lVal">50</span></strong></div>
-            <input type="range" id="lRange" min="5" max="100" value="50" oninput="document.getElementById('lVal').textContent=this.value">
-            <button class="btn btn-cyan" id="searchBtn" style="margin-top:9px;">🔍 Rechercher les images</button>
-            <div id="status"></div>
-        </div>
-
-        <!-- Mode -->
-        <div class="card">
-            <div class="card-title"><span class="ct-dot"></span>Mode d'affichage</div>
-            <select id="modeSelect">
-                <option value="ndvi_cereal">🌾 NDVI Céréales</option>
-                <option value="ndvi_classic">🟢 NDVI Classique</option>
-                <option value="classify_a">🎨 Classification Multi-cultures</option>
-                <option value="true_color">📷 Couleurs réelles (RGB)</option>
-            </select>
-        </div>
-
-        <!-- Courbe -->
-        <div class="card" id="chartCard" style="display:none">
-            <div class="card-title"><span class="ct-dot"></span>Courbe NDVI temporelle</div>
-            <div id="chartContainer"><canvas id="ndviChart"></canvas></div>
-            <button class="btn btn-amber" id="exportBtn" style="margin-top:7px;">📊 Exporter CSV</button>
-        </div>
-
-        <!-- Légende -->
-        <div class="card">
-            <div class="card-title"><span class="ct-dot"></span>Légende</div>
-            <div class="legend-grid" id="legendContent"></div>
-        </div>
-
-        <!-- Résultats -->
-        <div class="card" id="resultsCard" style="display:none">
-            <div class="card-title"><span class="ct-dot"></span>Images disponibles</div>
-            <div style="font-size:10px;color:var(--text-dim);margin-bottom:7px;">
-                👁 Afficher &nbsp;·&nbsp; <span style="color:#ce93d8;font-weight:600;">R</span> Comparer
-            </div>
-            <div id="imageList"></div>
-            <div id="downloadBtns" style="margin-top:9px;gap:5px;display:none;flex-direction:column;">
-                <button class="btn btn-slate" id="downloadBtn">⬇️ Télécharger PNG</button>
-                <button class="btn btn-slate" id="downloadTifBtn" style="background:#2d3d52;border:1px solid #00b8d9;">🗺️ Télécharger GeoTIFF</button>
-            </div>
-        </div>
-
-    </div>
-</div>
-
-<!-- MAP AREA -->
-<div id="map-area">
-    <div id="topbar">
-        <div class="topbar-tab active">🗺 Carte satellite</div>
-        <div class="topbar-sep"></div>
-        <div id="modeLabel"></div>
-    </div>
-    <div id="map-container">
-        <div id="map"></div>
-        <div id="right-panel">
-            <div id="rp-header">
-                <h3>🔍 Comparaison</h3>
-                <p>Image de référence</p>
-            </div>
-            <div id="rp-body">
-                <div class="rp-slot">
-                    <div class="rp-slot-label">Image carte <span id="rp-main-date">—</span></div>
-                    <div class="rp-img-box" id="rp-main-box"><div class="rp-empty">Affichez une image<br>sur la carte</div></div>
-                </div>
-                <div class="rp-slot">
-                    <div class="rp-slot-label">Comparaison <span id="rp-ref-date">—</span></div>
-                    <div class="rp-img-box" id="rp-ref-box"><div class="rp-empty">Cliquez <b style="color:#ce93d8">R</b><br>sur une image</div></div>
-                </div>
-                <div id="rp-legend">
-                    <div class="rp-legend-title">Légende NDVI</div>
-                    <div class="rp-legend-row"><div class="rp-dot" style="background:#1461bf"></div>Eau / Oued</div>
-                    <div class="rp-legend-row"><div class="rp-dot" style="background:#006421"></div>Blé vigueur haute</div>
-                    <div class="rp-legend-row"><div class="rp-dot" style="background:#228b22"></div>Orge / Céréales</div>
-                    <div class="rp-legend-row"><div class="rp-dot" style="background:#ffcc00"></div>Levée / Stress</div>
-                    <div class="rp-legend-row"><div class="rp-dot" style="background:#cc2200"></div>Sol nu</div>
-                    <div class="rp-legend-row"><div class="rp-dot" style="background:#599926"></div>Oliviers / Arbo</div>
-                    <div class="rp-legend-row"><div class="rp-dot" style="background:#00cc99"></div>Maraîcher</div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-<!-- JSZip pour lire les ZIP côté client -->
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
-<script>
-/* ── Side-by-side pour L.imageOverlay ── */
-(function(){
-    // L.imageOverlay expose _image (HTMLImageElement), pas getContainer()
-    // On patche directement l'élément _image via le pane parent
-    function getEl(layer) {
-        // imageOverlay: _image est l'élément img
-        if (layer._image) return layer._image;
-        // fallback pour tileLayer etc.
-        if (layer.getContainer) return layer.getContainer();
-        return null;
-    }
-
-    L.Control.SideBySide = L.Control.extend({
-        options: { thumbSize: 42 },
-        initialize: function(left, right, opts) {
-            this._left  = left;
-            this._right = right;
-            L.setOptions(this, opts);
-        },
-        onAdd: function(map) {
-            this._map = map;
-            var c = this._container = L.DomUtil.create('div','leaflet-sbs');
-            this._divider = L.DomUtil.create('div','leaflet-sbs-divider', c);
-            var r = this._range = L.DomUtil.create('input','leaflet-sbs-range', c);
-            r.type='range'; r.min=0; r.max=100; r.step='any'; r.value=50;
-            L.DomEvent.on(r, 'input change', this._clip, this);
-            map.on('move zoom resize zoomend moveend', this._clip, this);
-            // Premier clip après rendu
-            setTimeout(() => this._clip(), 100);
-            return c;
-        },
-        onRemove: function(map) {
-            map.off('move zoom resize zoomend moveend', this._clip, this);
-            L.DomEvent.off(this._range, 'input change', this._clip, this);
-            [this._left, this._right].forEach(function(l) {
-                var el = getEl(l);
-                if (el) el.style.clip = '';
-            });
-        },
-        _clip: function() {
-            var map = this._map;
-            var nw  = map.getBounds().getNorthWest();
-            var se  = map.getBounds().getSouthEast();
-            var tl  = map.latLngToContainerPoint(nw);
-            var br  = map.latLngToContainerPoint(se);
-            var x   = parseFloat(this._range.value) / 100 * map.getSize().x;
-            this._divider.style.left = x + 'px';
-            var lEl = getEl(this._left);
-            var rEl = getEl(this._right);
-            if (lEl) lEl.style.clip = 'rect('+tl.y+'px,'+x+'px,'+br.y+'px,'+tl.x+'px)';
-            if (rEl) rEl.style.clip = 'rect('+tl.y+'px,'+br.x+'px,'+br.y+'px,'+x+'px)';
-        }
-    });
-    L.control.sideBySide = function(l, r, o) {
-        return new L.Control.SideBySide(l, r, o);
-    };
-})();
-</script>
-
-
-
-<script>
-// ── Parseur SHP/DBF client-side (pour ZIP uploadé) ──
-async function parseShpZip(arrayBuffer) {
-    const zip = await JSZip.loadAsync(arrayBuffer);
-    const files = Object.keys(zip.files);
-    const shpName = files.find(f => f.toLowerCase().endsWith('.shp'));
-    const dbfName = files.find(f => f.toLowerCase().endsWith('.dbf'));
-    if (!shpName || !dbfName) throw new Error('ZIP doit contenir .shp et .dbf');
-
-    const shpBuf = await zip.files[shpName].async('arraybuffer');
-    const dbfBuf = await zip.files[dbfName].async('arraybuffer');
-
-    const features = parseShpDbf(shpBuf, dbfBuf);
-    return { type:'FeatureCollection', features };
-}
-
-function parseShpDbf(shpBuf, dbfBuf) {
-    // ── DBF ──
-    const dbfView = new DataView(dbfBuf);
-    const numRec  = dbfView.getUint32(4, true);
-    const hdrSize = dbfView.getUint16(8, true);
-    const recSize = dbfView.getUint16(10, true);
-    const fields  = [];
-    let pos = 32;
-    while (pos < hdrSize - 1) {
-        const raw = new Uint8Array(dbfBuf, pos, 32);
-        if (raw[0] === 0x0D) break;
-        let name = '';
-        for (let i = 0; i < 11 && raw[i]; i++) name += String.fromCharCode(raw[i]);
-        fields.push({ name: name.trim(), type: String.fromCharCode(raw[11]), len: raw[16] });
-        pos += 32;
-    }
-    const records = [];
-    let rpos = hdrSize;
-    for (let r = 0; r < numRec; r++) {
-        const vals = {};
-        let fpos = rpos + 1;
-        fields.forEach(f => {
-            const bytes = new Uint8Array(dbfBuf, fpos, f.len);
-            vals[f.name] = new TextDecoder('latin1').decode(bytes).trim();
-            fpos += f.len;
-        });
-        records.push(vals);
-        rpos += recSize;
-    }
-
-    // ── SHP ──
-    const shpView = new DataView(shpBuf);
-    // Detect projection from PRJ or assume from coords
-    const features = [];
-    let spos = 100;
-    let recIdx = 0;
-    while (spos < shpBuf.byteLength - 8 && recIdx < records.length) {
-        const clen = shpView.getInt32(spos + 4) * 2;
-        const stype = shpView.getInt32(spos + 8, true);
-        if (stype !== 5) { spos += 8 + clen; recIdx++; continue; }
-
-        const numParts  = shpView.getInt32(spos + 44, true);
-        const numPoints = shpView.getInt32(spos + 48, true);
-        const parts = [];
-        for (let i = 0; i < numParts; i++)
-            parts.push(shpView.getInt32(spos + 52 + i*4, true));
-        parts.push(numPoints);
-
-        const ptsOff = spos + 52 + numParts*4;
-        const allPts = [];
-        for (let i = 0; i < numPoints; i++) {
-            const x = shpView.getFloat64(ptsOff + i*16,     true);
-            const y = shpView.getFloat64(ptsOff + i*16 + 8, true);
-            // Auto-detect UTM vs WGS84
-            const coord = (Math.abs(x) > 180 || Math.abs(y) > 90)
-                ? utmToWgs84(x, y)   // UTM coords
-                : [x, y];            // Already WGS84
-            allPts.push(coord);
-        }
-
-        const rings = [];
-        for (let i = 0; i < numParts; i++)
-            rings.push(allPts.slice(parts[i], parts[i+1]));
-
-        // Find best name field
-        const rec = records[recIdx];
-        const nameField = Object.keys(rec).find(k =>
-            k.toLowerCase().includes('nom') ||
-            k.toLowerCase().includes('name') ||
-            k.toLowerCase().includes('gouv') ||
-            k.toLowerCase().includes('label')
-        ) || Object.keys(rec)[1] || Object.keys(rec)[0];
-
-        features.push({
-            type: 'Feature',
-            properties: { ...rec, name: rec[nameField] || 'Zone '+(recIdx+1) },
-            geometry: { type: 'Polygon', coordinates: rings }
-        });
-        spos += 8 + clen;
-        recIdx++;
-    }
-    return features;
-}
-
-function utmToWgs84(easting, northing, zone=32, northern=true) {
-    const k0=0.9996, a=6378137, e2=0.00669438, ep2=e2/(1-e2);
-    const x = easting - 500000;
-    const y = northern ? northing : northing - 1e7;
-    const M = y/k0;
-    const mu = M/(a*(1-e2/4-3*e2*e2/64));
-    const e1 = (1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
-    const fp = mu + (3*e1/2-27*e1**3/32)*Math.sin(2*mu)
-                  + (21*e1**2/16-55*e1**4/32)*Math.sin(4*mu)
-                  + (151*e1**3/96)*Math.sin(6*mu);
-    const N1=a/Math.sqrt(1-e2*Math.sin(fp)**2);
-    const R1=a*(1-e2)/(1-e2*Math.sin(fp)**2)**1.5;
-    const T1=Math.tan(fp)**2, C1=ep2*Math.cos(fp)**2;
-    const D=x/(N1*k0);
-    const lat=fp-(N1*Math.tan(fp)/R1)*(D**2/2-(5+3*T1+10*C1-4*C1**2-9*ep2)*D**4/24);
-    const lng0=(zone-1)*6-180+3;
-    const lng=lng0+(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1**2+8*ep2+24*T1**2)*D**5/120)/Math.cos(fp);
-    return [+lng.toFixed(6), +lat.toFixed(6)];
-}
-
-// ── ZIP upload handler (désactivé — zipInput supprimé du DOM) ──
-const _zipEl = document.getElementById('zipInput');
-if (_zipEl) {
-    _zipEl.addEventListener('change', async function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const status = document.getElementById('govStatus');
-        status.textContent = '⏳ Lecture du fichier...';
-        status.style.color = 'var(--cyan)';
-        try {
-            const buf = await file.arrayBuffer();
-            const gj  = await parseShpZip(buf);
-            loadGouvernoratsGeoJSON(gj);
-            document.getElementById('uploadZone').style.borderColor = 'var(--green)';
-        } catch(err) {
-            status.textContent = '❌ ' + err.message;
-            status.style.color = '#ff8a80';
-        }
-        this.value = '';
-    });
-}
-</script>
-
-<script>
-    /* ═══════════════════════════════════════════════════════
-       CONFIG
-    ═══════════════════════════════════════════════════════ */
-    const CLIENT_ID     = "f3a844c9-d5a2-4b52-81b2-4d500abf2860";
-    const CLIENT_SECRET = "7SYrMjd6w2IaxZ7Vp0cZRqlEoH3b80kh";
-
-    /* ═══════════════════════════════════════════════════════
-       EVALSCRIPTS
-    ═══════════════════════════════════════════════════════ */
-    const EVALSCRIPTS = {
-        ndvi_cereal: `//VERSION=3
-function setup() { return { input:[{bands:["B03","B04","B08","dataMask"]}], output:{bands:4} }; }
-function evaluatePixel(s) {
-    if (s.dataMask===0) return [0,0,0,0];
-    const ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
-    const ndwi=(s.B03-s.B08)/(s.B03+s.B08+1e-10);
-    if (ndwi>0.1)  return [0.05,0.35,0.75,1];
-    if (ndvi>0.6)  return [0.0, 0.39,0.13,1];
-    if (ndvi>0.4)  return [0.13,0.55,0.13,1];
-    if (ndvi>0.2)  return [1.0, 1.0, 0.0, 1];
-    return [0.8,0.13,0.1,1];
-}`,
-        ndvi_classic: `//VERSION=3
-function setup() { return { input:[{bands:["B04","B08","dataMask"]}], output:{bands:4} }; }
-function evaluatePixel(s) {
-    if (s.dataMask===0) return [0,0,0,0];
-    const ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
-    const v=Math.max(0,Math.min(1,(ndvi+0.2)/1.2));
-    if (v<0.5) return [1,v*2,0,1];
-    return [1-(v-0.5)*2,1,0,1];
-}`,
-        classify_a: `//VERSION=3
-function setup() { return { input:[{bands:["B02","B03","B04","B05","B08","B11","dataMask"]}], output:{bands:4} }; }
-function evaluatePixel(s) {
-    if (s.dataMask===0) return [0,0,0,0];
-    const ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
-    const ndre=(s.B08-s.B05)/(s.B08+s.B05+1e-10);
-    const ndwi=(s.B03-s.B08)/(s.B03+s.B08+1e-10);
-    const bsi=((s.B11+s.B04)-(s.B08+s.B02))/((s.B11+s.B04)+(s.B08+s.B02)+1e-10);
-    if (ndwi>0.15)                           return [0.08,0.38,0.75,1];
-    if (ndre>0.25&&ndvi>0.35&&ndvi<0.75)     return [0.35,0.60,0.15,1];
-    if (ndvi>0.55&&bsi<0.0)                  return [0.05,0.45,0.10,1];
-    if (ndvi>0.35&&ndvi<=0.55)               return [0.45,0.75,0.20,1];
-    if (ndvi>0.45&&ndwi>-0.05&&ndwi<=0.15)  return [0.0, 0.80,0.60,1];
-    if (ndvi>0.15&&ndvi<=0.35)               return [0.95,0.85,0.10,1];
-    if (ndvi>0.05&&ndvi<=0.15)               return [0.80,0.55,0.20,1];
-    return [0.75,0.25,0.15,1];
-}`,
-        true_color: `//VERSION=3
-function setup() { return { input:[{bands:["B04","B03","B02","dataMask"]}], output:{bands:4} }; }
-function evaluatePixel(s) {
-    if (s.dataMask===0) return [0,0,0,0];
-    return [s.B04*3.5,s.B03*3.5,s.B02*3.5,1];
-}`
-    };
-
-    // Evalscript dédié pour lecture NDVI pixel (retourne valeur float encodée en PNG R+G)
-    const EVALSCRIPT_NDVI_VALUE = `//VERSION=3
-function setup() { return { input:[{bands:["B04","B08","dataMask"]}], output:{bands:4} }; }
-function evaluatePixel(s) {
-    if (s.dataMask===0) return [0,0,0,0];
-    const ndvi=(s.B08-s.B04)/(s.B08+s.B04+1e-10);
-    // Encoder NDVI [-1,1] → [0,255] dans canal R, indicateur de validité dans A
-    const encoded = Math.round((ndvi+1)/2 * 255);
-    return [encoded/255, 0, 0, 1];
-}`;
-
-    /* ═══════════════════════════════════════════════════════
-       LÉGENDES
-    ═══════════════════════════════════════════════════════ */
-    const LEGENDS = {
-        ndvi_cereal:  [
-            {color:'#0d5fc0',label:'Eau / Oued'},
-            {color:'#006421',label:'Blé (vigueur haute)'},
-            {color:'#228b22',label:'Orge / Céréales'},
-            {color:'#ffff00',label:'Levée / Stress'},
-            {color:'#cc2200',label:'Sol nu'}
-        ],
-        ndvi_classic: [
-            {color:'#ff0000',label:'NDVI très bas (< 0)'},
-            {color:'#ffaa00',label:'NDVI bas (0 – 0.3)'},
-            {color:'#ccff00',label:'NDVI moyen (0.3 – 0.6)'},
-            {color:'#00cc00',label:'NDVI élevé (> 0.6)'}
-        ],
-        classify_a:   [
-            {color:'#1461bf',label:'Eau / Barrage'},
-            {color:'#599926',label:'Oliviers / Arboriculture'},
-            {color:'#0d7219',label:'Blé (vigueur haute)'},
-            {color:'#73bf33',label:'Orge / Céréales'},
-            {color:'#00cc99',label:'Cultures maraîchères'},
-            {color:'#f2d919',label:'Levée / Stress'},
-            {color:'#cc8c33',label:'Jachère'},
-            {color:'#bf4026',label:'Sol nu / Labour'}
-        ],
-        true_color:   [{color:'#7cb9e8',label:'Image satellite réelle'}]
-    };
-
-    function renderLegend(mode) {
-        document.getElementById('legendContent').innerHTML =
-            (LEGENDS[mode]||[]).map(i=>
-                `<div class="legend-row">
-                    <div class="dot" style="background:${i.color}"></div>
-                    <span>${i.label}</span>
-                 </div>`
-            ).join('');
-    }
-    renderLegend('ndvi_cereal');
-    document.getElementById('modeSelect').onchange = () =>
-        renderLegend(document.getElementById('modeSelect').value);
-
-    /* ═══════════════════════════════════════════════════════
-       CARTE
-    ═══════════════════════════════════════════════════════ */
-    const map = L.map('map').setView([36.7,10.2],9);
-    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        {attribution:'© Google Satellite',maxZoom:20}).addTo(map);
-
-    const drawnItems = new L.FeatureGroup().addTo(map);
-    map.addControl(new L.Control.Draw({
-        edit: { featureGroup: drawnItems },
-        draw: { polygon:true, rectangle:true, polyline:false, circle:false, marker:false, circlemarker:false }
-    }));
-
-    /* ═══════════════════════════════════════════════════════
-       ÉTAT GLOBAL
-    ═══════════════════════════════════════════════════════ */
-    let currentBbox, currentBounds, selectedGeom = null;
-    let totalAreaHa = 0, lastFeatures = [];
-    let activeLayers  = {};
-    let compareL = null, compareR = null;
-    let cLayerL  = null, cLayerR  = null;
-    let slider   = null;
-    let chartObj = null;
-    let cachedToken = null, tokenExpiry = 0;
-
-    // Infobulle — state
-    let tooltipActive   = false;
-    let ndviLayerCanvas = null;
-    let ndviBounds      = null;
-    const tooltip = document.getElementById('ndvi-tooltip');
-
-    /* ═══════════════════════════════════════════════════════
-       RÉGION
-    ═══════════════════════════════════════════════════════ */
-    // ── Gouvernorats GeoJSON ──
-    let gouvernoratLayer = null;
-    let gouvernoratsGeoJSON = null; // Chargé depuis ZIP ou données intégrées
-
-    // ── Calcul résolution dynamique selon surface ──
-    function calcResolution(bbox) {
-        const dLng = bbox[2] - bbox[0];
-        const dLat = bbox[3] - bbox[1];
-        const cy   = (bbox[1] + bbox[3]) / 2;
-        const widthM  = dLng * 111320 * Math.cos(cy * Math.PI / 180);
-        const heightM = dLat * 111320;
-        // Sentinel-2 natif = 10m. On cible max 4096px, min 256px
-        const pixW = Math.min(4096, Math.max(256, Math.round(widthM  / 10)));
-        const pixH = Math.min(4096, Math.max(256, Math.round(heightM / 10)));
-        const resM = Math.round(Math.max(widthM, heightM) / Math.max(pixW, pixH));
-        return { w: pixW, h: pixH, resM };
-    }
-
-    // ── Merge multi-feature → union bbox + MultiPolygon geometry ──
-    function mergeFeatures(features) {
-        if (features.length === 1) return features[0];
-        // Merge all rings into a GeometryCollection for display
-        // For Sentinel bbox: use combined bounds
-        const allCoords = features.flatMap(f =>
-            f.geometry.type === 'Polygon'
-                ? f.geometry.coordinates
-                : f.geometry.coordinates
-        );
-        return {
-            type: 'Feature',
-            properties: { name: features.map(f => f.properties.name).join(' + ') },
-            geometry: { type: 'MultiPolygon', coordinates: allCoords.map(r => [r]) }
-        };
-    }
-
-    function setGouvernoratFeatures(selectedFeatures) {
-        if (gouvernoratLayer) map.removeLayer(gouvernoratLayer);
-        if (window.areaRect)  { map.removeLayer(window.areaRect); window.areaRect = null; }
-        drawnItems.clearLayers();
-        selectedGeom = null;
-        disableTooltip();
-
-        if (!selectedFeatures.length) {
-            document.getElementById('govStatus').textContent = gouvernoratsGeoJSON
-                ? gouvernoratsGeoJSON.features.length + ' gouvernorats disponibles'
-                : 'Chargement...';
-            return;
-        }
-
-        // Draw all selected boundaries
-        gouvernoratLayer = L.geoJSON(
-            { type:'FeatureCollection', features: selectedFeatures },
-            { style: { color:'#00b8d9', weight:2.5, fillColor:'#00b8d9', fillOpacity:0.07, dashArray:'6 4' } }
-        ).addTo(map);
-
-        const bounds = gouvernoratLayer.getBounds();
-        map.fitBounds(bounds, { padding:[30,30] });
-        currentBounds = bounds;
-        currentBbox   = [
-            +bounds.getWest().toFixed(6), +bounds.getSouth().toFixed(6),
-            +bounds.getEast().toFixed(6), +bounds.getNorth().toFixed(6)
-        ];
-
-        // Stocker la géométrie pour masquage evalscript
-        if (selectedFeatures.length === 1) {
-            selectedGeom = selectedFeatures[0].geometry;
-        } else {
-            // Garder comme MultiPolygon — bbox utilisé
-            const allRings = selectedFeatures.flatMap(f =>
-                f.geometry.type === 'Polygon'
-                    ? [f.geometry.coordinates]
-                    : f.geometry.coordinates
-            );
-            selectedGeom = { type: 'MultiPolygon', coordinates: allRings };
-        }
-
-        // Calcul superficie
-        let totalArea = 0;
-        const cy = (bounds.getNorth() + bounds.getSouth()) / 2;
-        selectedFeatures.forEach(f => {
-            const coords = f.geometry.coordinates[0];
-            let a = 0;
-            for (let i=0,j=coords.length-1; i<coords.length; j=i++)
-                a += (coords[j][0]+coords[i][0]) * (coords[j][1]-coords[i][1]);
-            totalArea += Math.abs(a/2);
-        });
-        totalAreaHa = Math.round(totalArea * 111320*111320 * Math.cos(cy*Math.PI/180) / 10000);
-
-        // Résolution dynamique
-        const res = calcResolution(currentBbox);
-        const isMulti = selectedFeatures.length > 1 || window._allTunisiaSelected;
-        const modeStr = isMulti ? ' · 📦 Bbox (multi-régions)' : ' · ✂️ Masque exact';
-        document.getElementById('govStatus').innerHTML =
-            `<span style="color:#69f0ae">${
-                window._allTunisiaSelected
-                    ? '🇹🇳 Toute la Tunisie'
-                    : selectedFeatures.map(f=>f.properties.name).join(', ')
-            }</span><br>` +
-            `📐 ~${totalAreaHa.toLocaleString()} ha · 🎯 ${res.resM}m/px${modeStr}`;
-
-        showAreaDisplay();
-    }
-
-    function loadGouvernoratsGeoJSON(gj) {
-        gouvernoratsGeoJSON = gj;
-        const sel = document.getElementById('regionSelect');
-        sel.innerHTML = '';
-        gj.features.forEach((f,i) => {
-            const opt = document.createElement('option');
-            opt.value = i;
-            opt.textContent = f.properties.name || f.properties.nm_gouv_fr || 'Zone '+(i+1);
-            sel.appendChild(opt);
-        });
-        sel.disabled = false;
-        document.getElementById('govStatus').textContent = gj.features.length + ' gouvernorats disponibles';
-        document.getElementById('govStatus').style.color = 'var(--text-muted)';
-    }
-
-    document.getElementById('regionSelect').addEventListener('change', function() {
-        if (!gouvernoratsGeoJSON) return;
-        // Uncheck "Toute la Tunisie" when individual selection changes
-        document.getElementById('allTunisia').checked = false;
-        window._allTunisiaSelected = false;
-        const selected = Array.from(this.selectedOptions)
-            .map(o => gouvernoratsGeoJSON.features[parseInt(o.value)])
-            .filter(Boolean);
-        if (selected.length > 0) setGouvernoratFeatures(selected);
-    });
-
-    document.getElementById('allTunisia').addEventListener('change', function() {
-        if (!gouvernoratsGeoJSON) return;
-        if (this.checked) {
-            // Désélectionner tout dans la liste
-            Array.from(document.getElementById('regionSelect').options)
-                .forEach(o => o.selected = false);
-            window._allTunisiaSelected = true;
-            // Sélectionner toutes les features
-            setGouvernoratFeatures(gouvernoratsGeoJSON.features);
-        } else {
-            window._allTunisiaSelected = false;
-            setGouvernoratFeatures([]);
-        }
-    });
-
-    // Charger les données intégrées au démarrage
-    loadGouvernoratsGeoJSON(GOUVERNORATS_GEOJSON);
-
-    map.on(L.Draw.Event.CREATED, e => {
-        drawnItems.clearLayers();
-        // Style: contour visible, remplissage transparent
-        if (e.layer.setStyle) {
-            e.layer.setStyle({ color:'#00b8d9', weight:2.5, fillOpacity:0.08, fillColor:'#00b8d9' });
-        }
-        drawnItems.addLayer(e.layer);
-        selectedGeom  = e.layer.toGeoJSON().geometry;
-        currentBounds = e.layer.getBounds();
-        currentBbox   = [currentBounds.getWest(), currentBounds.getSouth(),
-                         currentBounds.getEast(), currentBounds.getNorth()];
-        // Masquer le rectangle de région par défaut quand une parcelle est dessinée
-        if (window.areaRect) { window.areaRect.setStyle({ opacity:0, fillOpacity:0 }); }
-        try {
-            const pts = e.layer.getLatLngs()[0];
-            totalAreaHa = (L.GeometryUtil.geodesicArea(pts) / 10000).toFixed(2);
-        } catch { totalAreaHa = '—'; }
-        showAreaDisplay();
-        disableTooltip();
-    });
-
-    // Quand une forme est éditée, mettre à jour les bounds
-    map.on(L.Draw.Event.EDITED, e => {
-        e.layers.eachLayer(layer => {
-            selectedGeom  = layer.toGeoJSON().geometry;
-            currentBounds = layer.getBounds();
-            currentBbox   = [currentBounds.getWest(), currentBounds.getSouth(),
-                             currentBounds.getEast(), currentBounds.getNorth()];
-        });
-        disableTooltip();
-    });
-
-    // Quand une forme est supprimée, revenir à la région
-    map.on(L.Draw.Event.DELETED, () => {
-        selectedGeom = null;
-        currentBbox   = JSON.parse(document.getElementById('regionSelect').value);
-        currentBounds = L.latLngBounds([currentBbox[1],currentBbox[0]],[currentBbox[3],currentBbox[2]]);
-        if (window.areaRect) { window.areaRect.setStyle({ opacity:1, fillOpacity:.06 }); }
-        document.getElementById('areaDisplay').style.display = 'none';
-        disableTooltip();
-    });
-
-    /* ═══════════════════════════════════════════════════════
-       INFOBULLE NDVI — activée seulement sur parcelle + image visible
-    ═══════════════════════════════════════════════════════ */
-    function enableTooltip(ndviImgUrl, bounds) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width  = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            ndviLayerCanvas = canvas;
-            ndviBounds      = bounds;
-            tooltipActive   = true;
-            // Calculer les surfaces par type de culture
-            computeCultureSurfaces(ctx, img.width, img.height);
-        };
-        img.onerror = () => { tooltipActive = false; };
-        img.src = ndviImgUrl;
-    }
-
-    // Calcule la répartition des cultures en lisant les pixels NDVI encodés
-    function computeCultureSurfaces(ctx, w, h) {
-        if (!totalAreaHa || totalAreaHa === '—') return;
-        const data = ctx.getImageData(0, 0, w, h).data;
-        let total = 0;
-        const counts = { eau:0, arbo:0, ble:0, cereales:0, maraicher:0, levee:0, jachere:0, sol:0 };
-
-        for (let i = 0; i < data.length; i += 4) {
-            const a = data[i+3];
-            if (a < 10) continue; // transparent = hors parcelle
-            total++;
-            // Décoder NDVI depuis canal R
-            const ndvi = (data[i] / 255) * 2 - 1;
-            if (ndvi < -0.05)      counts.eau++;
-            else if (ndvi < 0.05)  counts.sol++;
-            else if (ndvi < 0.15)  counts.jachere++;
-            else if (ndvi < 0.25)  counts.levee++;
-            else if (ndvi < 0.40)  counts.cereales++;
-            else if (ndvi < 0.55)  counts.ble++;
-            else if (ndvi < 0.70)  counts.arbo++;
-            else                   counts.maraicher++;
-        }
-
-        if (total === 0) return;
-        const ha = parseFloat(totalAreaHa);
-
-        const cultures = [
-            { key:'eau',      icon:'💧', color:'#1461bf', label:'Eau / Oued' },
-            { key:'arbo',     icon:'🫒', color:'#599926', label:'Oliviers / Arbo' },
-            { key:'ble',      icon:'🌾', color:'#0d7219', label:'Blé (vigoureux)' },
-            { key:'cereales', icon:'🌿', color:'#73bf33', label:'Orge / Céréales' },
-            { key:'maraicher',icon:'🥬', color:'#00cc99', label:'Maraîcher' },
-            { key:'levee',    icon:'🌱', color:'#e8c800', label:'Levée / Stress' },
-            { key:'jachere',  icon:'🟤', color:'#cc8c33', label:'Jachère' },
-            { key:'sol',      icon:'🪨', color:'#bf4026', label:'Sol nu' },
-        ];
-
-        let html = `📏 Superficie totale : <b>${totalAreaHa} ha</b><br><br>`;
-        cultures.forEach(c => {
-            const pct = (counts[c.key] / total * 100);
-            if (pct < 0.5) return; // ignorer < 0.5%
-            const surfHa = (ha * pct / 100).toFixed(1);
-            html += `${c.icon} <span style="color:${c.color}"><b>${c.label}</b></span> : 
-                     ${surfHa} ha <span style="color:#888">(${pct.toFixed(0)}%)</span><br>`;
-        });
-
-        const el = document.getElementById('areaDisplay');
-        el.innerHTML = html;
-        el.style.display = 'block';
-    }
-
-    function disableTooltip() {
-        tooltipActive   = false;
-        ndviLayerCanvas = null;
-        ndviBounds      = null;
-        if (tooltip) tooltip.style.display = 'none';
-    }
-
-    // Lire la valeur NDVI depuis le canvas en fonction de la position lat/lng
-    function getNdviAtLatLng(latlng) {
-        if (!ndviLayerCanvas || !ndviBounds) return null;
-        const sw = ndviBounds.getSouthWest();
-        const ne = ndviBounds.getNorthEast();
-        const px = (latlng.lng - sw.lng) / (ne.lng - sw.lng);
-        const py = (ne.lat - latlng.lat) / (ne.lat - sw.lat);
-        if (px < 0 || px > 1 || py < 0 || py > 1) return null;
-        const x   = Math.floor(px * ndviLayerCanvas.width);
-        const y   = Math.floor(py * ndviLayerCanvas.height);
-        const ctx = ndviLayerCanvas.getContext('2d');
-        const [r,,, a] = ctx.getImageData(x, y, 1, 1).data;
-        if (a < 10) return null;  // pixel transparent = hors parcelle
-        // Décoder : NDVI = R/255 * 2 - 1
-        return +((r / 255) * 2 - 1).toFixed(3);
-    }
-
-    // Vérifier si le curseur est dans la zone dessinée
-    function isInsideDrawnArea(latlng) {
-        if (!currentBounds) return false;
-        if (!selectedGeom)  return currentBounds.contains(latlng);
-        // Vérification bbox suffit pour l'infobulle
-        return currentBounds.contains(latlng);
-    }
-
-
-
-    /* ═══════════════════════════════════════════════════════
-       UI HELPERS
-    ═══════════════════════════════════════════════════════ */
-    function setStatus(msg, cls) {
-        const el = document.getElementById('status');
-        el.className = cls; el.innerHTML = msg;
-    }
-
-    function showAreaDisplay() {
-        const el = document.getElementById('areaDisplay');
-        el.innerHTML = `📏 Superficie : <b>${totalAreaHa} ha</b><br>
-            <span style="color:#888;font-size:11px;">Affichez une image pour voir la répartition des cultures</span>`;
-        el.style.display = 'block';
-    }
-
-    function updateModeLabel(isCompare=false) {
-        const lbl   = document.getElementById('modeLabel');
-        const mode  = document.getElementById('modeSelect').value;
-        const names = {ndvi_cereal:'NDVI Céréales',ndvi_classic:'NDVI Classique',classify_a:'Classification A',true_color:'RGB'};
-        lbl.style.display = 'block';
-        lbl.textContent   = (isCompare ? '⚖ Comparaison · ' : '') + (names[mode]||mode);
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       TOKEN
-    ═══════════════════════════════════════════════════════ */
-    async function getToken() {
-        if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-        const r = await fetch('https://services.sentinel-hub.com/oauth/token',{
-            method:'POST',
-            headers:{'Content-Type':'application/x-www-form-urlencoded'},
-            body:new URLSearchParams({grant_type:'client_credentials',client_id:CLIENT_ID,client_secret:CLIENT_SECRET})
-        });
-        if (!r.ok) throw new Error('Auth échouée ('+r.status+')');
-        const d = await r.json();
-        cachedToken = d.access_token;
-        tokenExpiry = Date.now()+(d.expires_in-60)*1000;
-        return cachedToken;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       RECHERCHE
-    ═══════════════════════════════════════════════════════ */
-    document.getElementById('searchBtn').onclick = async function() {
-        if (!currentBbox) {
-            setStatus('⚠️ Sélectionnez d\'abord un gouvernorat', 's-err');
-            return;
-        }
-        this.disabled = true;
-        setStatus('<span class="spin"></span>Connexion...','s-info');
-        clearAllLayers();
-
-        try {
-            const token = await getToken();
-            setStatus('<span class="spin"></span>Recherche en cours...','s-info');
-
-            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search',{
-                method:'POST',
-                headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    bbox:        currentBbox,
-                    datetime:    `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
-                    collections: ["sentinel-2-l2a"],
-                    limit:       100
-                })
-            });
-            if (!res.ok) {
-                const e = await res.json().catch(()=>({}));
-                throw new Error(`Catalog ${res.status}: ${e.description||JSON.stringify(e)}`);
-            }
-
-            const data  = await res.json();
-            const cMax  = parseInt(document.getElementById('cRange').value);
-            const lMax  = parseInt(document.getElementById('lRange').value);
-            // Dédupliquer par date (garder la moins nuageuse par jour)
-            const byDate = {};
-            (data.features||[]).forEach(f => {
-                const d = f.properties.datetime.split('T')[0];
-                const c = f.properties['eo:cloud_cover'] ?? 100;
-                if (c < cMax && (!byDate[d] || c < (byDate[d].properties['eo:cloud_cover']??100)))
-                    byDate[d] = f;
-            });
-            lastFeatures = Object.values(byDate)
-                .sort((a,b) => b.properties.datetime.localeCompare(a.properties.datetime))
-                .slice(0, lMax);
-
-            if (!lastFeatures.length) {
-                setStatus('⚠️ Aucune image. Augmentez le seuil nuageux.','s-err');
-                this.disabled=false; return;
-            }
-
-            buildImageList(lastFeatures, token);
-            updateChart(lastFeatures);
-            setStatus(`✅ ${lastFeatures.length} images disponibles.`,'s-ok');
-
-        } catch(e) {
-            console.error(e);
-            setStatus('❌ '+e.message,'s-err');
-        }
-        this.disabled = false;
-    };
-
-    /* ═══════════════════════════════════════════════════════
-       LISTE D'IMAGES — boutons créés en DOM pur (pas innerHTML)
-    ═══════════════════════════════════════════════════════ */
-    function buildImageList(features) {
-        const list = document.getElementById('imageList');
-        list.innerHTML = '';
-        compareL = null; compareR = null;
-        // Vider la map de références
-        Object.keys(dateItemMap).forEach(k => delete dateItemMap[k]);
-        // compareRow désactivé — comparaison via panneau droit
-        
-        document.getElementById('resultsCard').style.display  = 'block';
-        document.getElementById('downloadBtns').style.display  = 'none';
-
-        features.forEach(f => {
-            const date   = f.properties.datetime.split('T')[0];
-            const clouds = Math.round(f.properties['eo:cloud_cover']??0);
-            const ctag   = clouds<15?'ctag-ok':clouds<40?'ctag-mid':'ctag-bad';
-
-            const item = document.createElement('div');
-            item.className = 'img-item';
-
-            // 👁 Bouton affichage
-            const eyeBtn = document.createElement('button');
-            eyeBtn.className   = 'eye-btn';
-            eyeBtn.textContent = '👁';
-            eyeBtn.title       = 'Afficher sur la carte';
-
-            // Date
-            const dateSpan       = document.createElement('span');
-            dateSpan.className   = 'date-label';
-            dateSpan.textContent = '📅 '+date;
-
-            // Nuages
-            const cloudSpan       = document.createElement('span');
-            cloudSpan.className   = 'cloud-tag '+ctag;
-            cloudSpan.textContent = '☁ '+clouds+'%';
-
-            // Bouton L
-            const btnL = document.createElement('button');
-            btnL.textContent = 'L';
-            btnL.title       = 'Sélectionner côté Gauche';
-            btnL.className   = 'side-btn side-L';
-            btnL.style.cssText = 'font-size:11px;padding:3px 8px;border-radius:3px;border:2px solid #1e6fa8;cursor:pointer;background:transparent;color:#1e6fa8;font-weight:700;transition:.2s;';
-
-            // Bouton R
-            const btnR = document.createElement('button');
-            btnR.textContent = 'R';
-            btnR.title       = 'Sélectionner côté Droit';
-            btnR.className   = 'side-btn side-R';
-            btnR.style.cssText = 'font-size:11px;padding:3px 8px;border-radius:3px;border:2px solid #9c27b0;cursor:pointer;background:transparent;color:#9c27b0;font-weight:700;transition:.2s;';
-
-            // Badge sélection
-            const badge = document.createElement('span');
-            badge.className = 'sel-badge-slot';
-            badge.style.minWidth = '20px';
-
-            item.append(eyeBtn, dateSpan, cloudSpan, btnL, btnR, badge);
-            list.appendChild(item);
-
-            // Enregistrer les refs DOM pour accès direct dans refreshSelectionUI
-            dateItemMap[date] = { item, btnL, btnR, badge };
-
-            // ── Listener 👁 ──
-            eyeBtn.addEventListener('click', async () => {
-                if (activeLayers[date]) {
-                    map.removeLayer(activeLayers[date]);
-                    delete activeLayers[date];
-                    eyeBtn.classList.remove('vis');
-                    // Désactiver infobulle si plus aucune couche visible
-                    if (Object.keys(activeLayers).length===0) disableTooltip();
-                } else {
-                    if (!currentBbox) {
-                        setStatus('⚠️ Sélectionnez d\'abord un gouvernorat', 's-err');
-                        return;
-                    }
-                    eyeBtn.innerHTML = '<span class="spin" style="border-top-color:#1e6fa8"></span>';
-                    eyeBtn.disabled  = true;
-                    try {
-                        const t = await getToken();
-                        // Charger couche visuelle (palette couleurs)
-                        const layer = await buildLayer(date, t, EVALSCRIPTS[document.getElementById('modeSelect').value]);
-                        layer.addTo(map);
-                        activeLayers[date] = layer;
-                        eyeBtn.classList.add('vis');
-
-                        // Mettre à jour le slot "carte" dans le panneau droit
-                        rpSetMain(layer._downloadUrl, date);
-
-                        // Charger couche NDVI valeurs (pour infobulle + surfaces) en parallèle
-                        loadNdviValueLayer(date, t);
-
-                        document.getElementById('downloadBtns').style.display = 'flex';
-                        updateModeLabel();
-                    } catch(err) {
-                        setStatus('❌ '+err.message,'s-err');
-                    }
-                    eyeBtn.textContent = '👁';
-                    eyeBtn.disabled    = false;
-                }
-                document.getElementById('downloadBtns').style.display =
-                    Object.keys(activeLayers).length>0 ? 'flex' : 'none';
-            });
-
-            // ── Listener L ──
-            btnL.addEventListener('click', () => {
-                compareL = (compareL===date) ? null : date;
-                refreshSelectionUI();
-            });
-
-            // ── Listener R — ouvre panneau droit ──
-            btnR.addEventListener('click', async () => {
-                if (compareR === date) {
-                    // Désélectionner
-                    compareR = null;
-                    btnR.style.background = 'transparent';
-                    btnR.style.color      = '#9c27b0';
-                    rpClearRef();
-                } else {
-                    // Désélectionner l'ancien R
-                    if (compareR && dateItemMap[compareR]) {
-                        const old = dateItemMap[compareR];
-                        old.btnR.style.background = 'transparent';
-                        old.btnR.style.color      = '#9c27b0';
-                        old.badge.innerHTML = old.badge.innerHTML.replace(/<span class="sel-badge sel-R">.*?<\/span>/, '');
-                    }
-                    compareR = date;
-                    btnR.style.background = '#9c27b0';
-                    btnR.style.color      = 'white';
-                    if (dateItemMap[date]) {
-                        dateItemMap[date].badge.innerHTML = '<span class="sel-badge sel-R">R ▶</span>';
-                    }
-                    await rpSetRef(date);
-                }
-            });
-        });
-    }
-
-    // Charger une couche NDVI valeurs en arrière-plan pour l'infobulle
-    async function loadNdviValueLayer(date, token) {
-        try {
-            const layer = await buildLayer(date, token, EVALSCRIPT_NDVI_VALUE);
-            // Récupérer l'URL blob de cette couche
-            enableTooltip(layer._downloadUrl, currentBounds);
-        } catch(e) {
-            console.warn('NDVI value layer failed:', e.message);
-        }
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       SÉLECTION L/R — UI
-    ═══════════════════════════════════════════════════════ */
-    // Map date → {item, btnL, btnR, badge} pour accès direct sans querySelector
-    const dateItemMap = {};
-
-    function refreshSelectionUI() {
-        // 1. Reset tout
-        Object.values(dateItemMap).forEach(({item, btnL, btnR, badge}) => {
-            item.style.borderColor = '';
-            item.style.background  = '';
-            btnL.style.background  = 'transparent';
-            btnL.style.color       = '#1e6fa8';
-            btnR.style.background  = 'transparent';
-            btnR.style.color       = '#9c27b0';
-            badge.innerHTML        = '';
-        });
-
-        // 2. Marquer L
-        if (compareL && dateItemMap[compareL]) {
-            const {item, btnL, badge} = dateItemMap[compareL];
-            item.style.borderColor = '#1e6fa8';
-            item.style.background  = '#e8f0fe';
-            btnL.style.background  = '#1e6fa8';
-            btnL.style.color       = 'white';
-            badge.innerHTML        = '<span class="sel-badge sel-L">◀ L</span>';
-        }
-
-        // 3. Marquer R
-        if (compareR && dateItemMap[compareR]) {
-            const {item, btnR, badge} = dateItemMap[compareR];
-            item.style.borderColor = '#9c27b0';
-            item.style.background  = '#f3e5f5';
-            btnR.style.background  = '#9c27b0';
-            btnR.style.color       = 'white';
-            // Si même item que L, ajouter à côté
-            badge.innerHTML += '<span class="sel-badge sel-R">R ▶</span>';
-        }
-
-        // 4. Bouton Comparer — visible seulement si L et R différents sont choisis
-        const canCompare = compareL && compareR && compareL !== compareR;
-        const row = null;
-        if(row) row.style.display = canCompare ? 'flex' : 'none';
-        if (canCompare) {
-            if(row) row.scrollIntoView({behavior:'smooth', block:'nearest'});
-        }
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       COMPARAISON CÔTE-À-CÔTE
-    ═══════════════════════════════════════════════════════ */
-;
-
-;
-
-    function clearAllLayers() {
-        Object.values(activeLayers).forEach(l => map.removeLayer(l));
-        activeLayers = {};
-        if (cLayerL) { map.removeLayer(cLayerL); cLayerL=null; }
-        if (cLayerR) { map.removeLayer(cLayerR); cLayerR=null; }
-        if (slider)  { map.removeControl(slider); slider=null; }
-        document.querySelectorAll('.eye-btn').forEach(b => {
-            b.classList.remove('vis'); b.textContent='👁';
-        });
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       CONSTRUCTION COUCHE SENTINEL
-    ═══════════════════════════════════════════════════════ */
 
     // ── Génère un evalscript avec masque polygonal intégré ──
-
-        async function buildLayer(date, token, evalscript, asTiff=false) {
-        // ── Résolution dynamique — plafonnée à 2500px ──
+    async function buildLayer(date, token, evalscript, asTiff=false) {
         const dLng   = currentBbox[2] - currentBbox[0];
         const dLat   = currentBbox[3] - currentBbox[1];
         const cy     = (currentBbox[1] + currentBbox[3]) / 2;
@@ -2465,7 +1239,6 @@ function evaluatePixel(s) {
             ? { type: "image/tiff", parameters: { compression: "deflate" } }
             : { type: "image/png" };
 
-        // ── Bounds: géométrie si 1 région (masque exact), bbox si multi/Tunisie ──
         const useBbox = !selectedGeom
             || selectedGeom.type === 'MultiPolygon'
             || window._allTunisiaSelected;
@@ -2494,8 +1267,6 @@ function evaluatePixel(s) {
             evalscript
         };
 
-        console.log('Request body:', JSON.stringify(body).slice(0, 300));
-
         const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
             method:  'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -2504,7 +1275,6 @@ function evaluatePixel(s) {
 
         if (!r.ok) {
             const txt = await r.text();
-            console.error('Process API error:', txt);
             let msg = `Process API ${r.status}`;
             try {
                 const j = JSON.parse(txt);
@@ -2516,7 +1286,6 @@ function evaluatePixel(s) {
         const ct = r.headers.get('content-type') || '';
         if (!ct.includes('image') && !ct.includes('tiff') && !ct.includes('octet-stream')) {
             const txt = await r.text();
-            console.error('Non-image response:', txt);
             throw new Error('Réponse non-image (' + ct + '): ' + txt.slice(0, 200));
         }
 
@@ -2569,9 +1338,6 @@ function evaluatePixel(s) {
     }
 
     /* ═══════════════════════════════════════════════════════
-       EXPORT
-    ═══════════════════════════════════════════════════════ */
-    /* ═══════════════════════════════════════════════════════
        PANNEAU DROIT — fonctions
     ═══════════════════════════════════════════════════════ */
 
@@ -2579,7 +1345,6 @@ function evaluatePixel(s) {
         document.getElementById('right-panel').classList.add('open');
     }
 
-    // Affiche une image dans le slot "carte" (main)
     function rpSetMain(blobUrl, date) {
         const box = document.getElementById('rp-main-box');
         document.getElementById('rp-main-date').textContent = date;
@@ -2587,7 +1352,6 @@ function evaluatePixel(s) {
         openRightPanel();
     }
 
-    // Affiche une image dans le slot "comparaison" (ref R)
     async function rpSetRef(date) {
         const box = document.getElementById('rp-ref-box');
         document.getElementById('rp-ref-date').textContent = date;
@@ -2607,7 +1371,6 @@ function evaluatePixel(s) {
         const box = document.getElementById('rp-ref-box');
         box.innerHTML = '<div class="rp-empty">Cliquez <b style="color:#ce93d8">R</b><br>sur une image</div>';
         document.getElementById('rp-ref-date').textContent = '—';
-        // Fermer panneau si les deux slots sont vides
         const mainBox = document.getElementById('rp-main-box');
         if (!mainBox.querySelector('img')) {
             document.getElementById('right-panel').classList.remove('open');
@@ -2637,18 +1400,18 @@ function evaluatePixel(s) {
         tooltip.style.left    = (e.originalEvent.pageX + 16) + 'px';
         tooltip.style.top     = (e.originalEvent.pageY - 42) + 'px';
         tooltip.innerHTML =
-            `<span style="color:${color};font-weight:700;font-size:13px;">NDVI ${ndvi > 0 ? '+' : ''}${ndvi}</span><br>
-             <span style="font-size:11px;opacity:.9;">${label}</span>`;
+            '<span style="color:' + color + ';font-weight:700;font-size:13px;">NDVI ' + (ndvi > 0 ? '+' : '') + ndvi + '</span><br>' +
+            '<span style="font-size:11px;opacity:.9;">' + label + '</span>';
     });
 
     map.on('mouseout', () => { tooltip.style.display = 'none'; });
 
-        document.getElementById('downloadBtn').addEventListener('click', () => {
+    document.getElementById('downloadBtn').addEventListener('click', () => {
         const src = Object.values(activeLayers).pop() || cLayerL;
         if (!src) return;
         const a = document.createElement('a');
         a.href = src._downloadUrl;
-        a.download = `NDVI_${src._downloadDate||'export'}.png`;
+        a.download = 'NDVI_' + (src._downloadDate||'export') + '.png';
         a.click();
     });
 
@@ -2663,8 +1426,6 @@ function evaluatePixel(s) {
             const mode   = document.getElementById('modeSelect').value;
             const date   = src._downloadDate;
 
-            // ✅ GeoTIFF : toujours bbox (l'API rejette geometry pour TIFF)
-            // Résolution dynamique
             const dLng = currentBbox[2]-currentBbox[0], dLat = currentBbox[3]-currentBbox[1];
             const cy   = (currentBbox[1]+currentBbox[3])/2;
             const wM   = dLng*111320*Math.cos(cy*Math.PI/180), hM = dLat*111320;
@@ -2674,23 +1435,11 @@ function evaluatePixel(s) {
             pixW = Math.max(64,pixW); pixH = Math.max(64,pixH);
             const resM = Math.round(Math.max(wM,hM)/Math.max(pixW,pixH));
 
-            // Evalscript pour GeoTIFF : retourne valeurs NDVI brutes (float entre -1 et +1)
-            const evalscriptNDVI = `//VERSION=3
-function setup() { 
-    return { 
-        input: [{bands: ["B04", "B08", "dataMask"]}], 
-        output: { bands: 1, sampleType: "FLOAT32" } 
-    }; 
-}
-function evaluatePixel(sample) {
-    if (sample.dataMask === 0) return [NaN];
-    let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0000001);
-    return [ndvi];
-}`;
+            const evalscriptNDVI = '//VERSION=3\nfunction setup() {\n    return {\n        input: [{bands: ["B04", "B08", "dataMask"]}],\n        output: { bands: 1, sampleType: "FLOAT32" }\n    };\n}\nfunction evaluatePixel(sample) {\n    if (sample.dataMask === 0) return [NaN];\n    let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0000001);\n    return [ndvi];\n}';
 
             const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     input: {
                         bounds: {
@@ -2698,7 +1447,7 @@ function evaluatePixel(sample) {
                             properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
                         },
                         data: [{ type: "sentinel-2-l2a", dataFilter: {
-                            timeRange: { from: `${date}T00:00:00Z`, to: `${date}T23:59:59Z` }
+                            timeRange: { from: date + 'T00:00:00Z', to: date + 'T23:59:59Z' }
                         }}]
                     },
                     output: {
@@ -2714,7 +1463,7 @@ function evaluatePixel(sample) {
 
             if (!r.ok) {
                 const txt = await r.text();
-                let msg = `GeoTIFF API ${r.status}`;
+                let msg = 'GeoTIFF API ' + r.status;
                 try { const j=JSON.parse(txt); msg+=': '+(j.error?.message||j.description||txt.slice(0,150)); }
                 catch { msg+=': '+txt.slice(0,150); }
                 throw new Error(msg);
@@ -2723,16 +1472,15 @@ function evaluatePixel(sample) {
             const blob = await r.blob();
             const a    = document.createElement('a');
             a.href     = URL.createObjectURL(blob);
-            a.download = `NDVI_${date}_${mode}.tif`;
+            a.download = 'NDVI_' + date + '_' + mode + '.tif';
             a.click();
-            setStatus(`✅ GeoTIFF ${pixW}×${pixH}px — ${resM}m/pixel`, 's-ok');
+            setStatus('\u2705 GeoTIFF ' + pixW + '\xd7' + pixH + 'px \u2014 ' + resM + 'm/pixel', 's-ok');
 
         } catch(e) {
-            console.error('GeoTIFF error:', e);
-            setStatus('❌ GeoTIFF: '+e.message, 's-err');
+            setStatus('\u274c GeoTIFF: '+e.message, 's-err');
         }
         btn.disabled = false;
-        btn.innerHTML = '🗺️ Télécharger GeoTIFF';
+        btn.innerHTML = '\U0001f5fa\ufe0f T\xe9l\xe9charger GeoTIFF';
     });
 
     document.getElementById('exportBtn').addEventListener('click', () => {
