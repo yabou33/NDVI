@@ -245,6 +245,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <!-- JSZip pour lire les ZIP côté client -->
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<!-- Turf.js — calcul union polygones (contour extérieur Tunisie) -->
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
 <script>
 /* ── Side-by-side pour L.imageOverlay ── */
@@ -655,11 +657,26 @@ function evaluatePixel(s) {
             return;
         }
 
-        // Draw all selected boundaries
-        gouvernoratLayer = L.geoJSON(
-            { type:'FeatureCollection', features: selectedFeatures },
-            { style: { color:'#00b8d9', weight:2.5, fillColor:'#00b8d9', fillOpacity:0.07, dashArray:'6 4' } }
-        ).addTo(map);
+        // Draw boundaries
+        if (window._allTunisiaSelected && tunisiaOutlineFeature) {
+            // Toute la Tunisie : afficher uniquement le contour extérieur (union des 24 gouvernorats)
+            // → aucune frontière interne visible, contour propre et net
+            gouvernoratLayer = L.geoJSON(tunisiaOutlineFeature, {
+                style: { color:'#00b8d9', weight:2.5, fillColor:'#00b8d9', fillOpacity:0.06, dashArray:'6 4' }
+            }).addTo(map);
+        } else if (selectedFeatures.length > 1) {
+            // Multi-sélection : traits fins sans fill pour éviter les superpositions aux frontières
+            gouvernoratLayer = L.geoJSON(
+                { type:'FeatureCollection', features: selectedFeatures },
+                { style: { color:'#00b8d9', weight:1.2, fillOpacity:0, dashArray:'4 3' } }
+            ).addTo(map);
+        } else {
+            // Région unique : contour épais + léger fill
+            gouvernoratLayer = L.geoJSON(
+                { type:'FeatureCollection', features: selectedFeatures },
+                { style: { color:'#00b8d9', weight:2.5, fillColor:'#00b8d9', fillOpacity:0.07, dashArray:'6 4' } }
+            ).addTo(map);
+        }
 
         const bounds = gouvernoratLayer.getBounds();
         map.fitBounds(bounds, { padding:[30,30] });
@@ -720,6 +737,54 @@ function evaluatePixel(s) {
         showAreaDisplay();
     }
 
+    // Contour extérieur de la Tunisie (union de tous les gouvernorats), calculé une seule fois
+    let tunisiaOutlineFeature = null;
+
+    function computeTunisiaOutline(features) {
+        if (tunisiaOutlineFeature) return; // déjà calculé
+
+        // Aplatir tous les gouvernorats en Polygons simples.
+        // Les régions avec îles (Nabeul→Zembra, Sfax→Kerkennah, Bizerte, Monastir)
+        // sont en MultiPolygon : turf.union échoue sur ces features directement.
+        // En extrayant chaque sous-polygone individuellement, chaque île
+        // devient un Polygon séparé et s'intègre correctement dans l'union.
+        // Pour les MultiPolygon (régions avec îles), on garde uniquement
+        // le plus grand polygone (continent) — les îles sont ignorées.
+        function largestPolygon(multiPolyCoords) {
+            let best = multiPolyCoords[0];
+            let bestArea = 0;
+            multiPolyCoords.forEach(polyCoords => {
+                const ring = polyCoords[0];
+                let a = 0;
+                for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
+                    a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
+                const area = Math.abs(a / 2);
+                if (area > bestArea) { bestArea = area; best = polyCoords; }
+            });
+            return best;
+        }
+
+        const allPolygons = [];
+        features.forEach(f => {
+            const g = f.geometry;
+            if (g.type === 'Polygon') {
+                allPolygons.push(turf.polygon(g.coordinates));
+            } else if (g.type === 'MultiPolygon') {
+                allPolygons.push(turf.polygon(largestPolygon(g.coordinates)));
+            }
+        });
+
+        let merged = allPolygons[0];
+        for (let i = 1; i < allPolygons.length; i++) {
+            try {
+                merged = turf.union(merged, allPolygons[i]);
+            } catch(e) {
+                console.warn(`turf.union ignoré pour polygone ${i}:`, e.message);
+            }
+        }
+        tunisiaOutlineFeature = merged;
+    }
+
     function loadGouvernoratsGeoJSON(gj) {
         gouvernoratsGeoJSON = gj;
         const sel = document.getElementById('regionSelect');
@@ -733,6 +798,8 @@ function evaluatePixel(s) {
         sel.disabled = false;
         document.getElementById('govStatus').textContent = gj.features.length + ' gouvernorats disponibles';
         document.getElementById('govStatus').style.color = 'var(--text-muted)';
+        // Précalcul du contour Tunisia en arrière-plan (non bloquant)
+        setTimeout(() => computeTunisiaOutline(gj.features), 100);
     }
 
     document.getElementById('regionSelect').addEventListener('change', function() {
