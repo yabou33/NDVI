@@ -682,17 +682,28 @@ function evaluatePixel(s) {
             selectedGeom = { type: 'MultiPolygon', coordinates: allRings };
         }
 
-        // Calcul superficie
+        // Calcul superficie — gère Polygon ET MultiPolygon
+        // Bug précédent : coordinates[0] sur un MultiPolygon donnait la 1ère sous-géométrie
+        // (ex : île Zembra ~373 ha) au lieu du continent Nabeul (~278 800 ha).
+        function shoelaceRing(ring) {
+            let a = 0;
+            for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
+                a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
+            return Math.abs(a / 2);
+        }
         let totalArea = 0;
         const cy = (bounds.getNorth() + bounds.getSouth()) / 2;
         selectedFeatures.forEach(f => {
-            const coords = f.geometry.coordinates[0];
-            let a = 0;
-            for (let i=0,j=coords.length-1; i<coords.length; j=i++)
-                a += (coords[j][0]+coords[i][0]) * (coords[j][1]-coords[i][1]);
-            totalArea += Math.abs(a/2);
+            const g = f.geometry;
+            if (g.type === 'Polygon') {
+                // coordinates = [exteriorRing, hole1, ...]
+                totalArea += shoelaceRing(g.coordinates[0]);
+            } else if (g.type === 'MultiPolygon') {
+                // coordinates = [ [exteriorRing, ...], [exteriorRing, ...], ... ]
+                g.coordinates.forEach(polygon => totalArea += shoelaceRing(polygon[0]));
+            }
         });
-        totalAreaHa = Math.round(totalArea * 111320*111320 * Math.cos(cy*Math.PI/180) / 10000);
+        totalAreaHa = Math.round(totalArea * 111320 * 111320 * Math.cos(cy * Math.PI / 180) / 10000);
 
         // Résolution dynamique
         const res = calcResolution(currentBbox);
