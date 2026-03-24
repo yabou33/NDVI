@@ -749,16 +749,9 @@ function evaluatePixel(s) {
         for (let i = 1; i < features.length; i++) {
             const poly = turf.polygon(features[i].geometry.coordinates);
             try {
-                // Essai direct d'abord (rapide)
                 merged = turf.union(merged, poly);
             } catch(e) {
-                try {
-                    // Si échec : micro-buffer uniquement sur ce polygone problématique
-                    const buffered = turf.buffer(poly, 0.001, { units: 'degrees' });
-                    merged = turf.union(merged, buffered);
-                } catch(e2) {
-                    console.warn(`Polygone ${i} ignoré:`, e2.message);
-                }
+                console.warn(`Polygone ${i} ignoré:`, e.message);
             }
         }
 
