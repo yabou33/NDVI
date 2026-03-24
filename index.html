@@ -590,6 +590,13 @@ function evaluatePixel(s) {
     let chartObj = null;
     let cachedToken = null, tokenExpiry = 0;
 
+    // Retourne une date décalée de `days` jours (ex: shiftDate('2025-02-18', -4) → '2025-02-14')
+    function shiftDate(dateStr, days) {
+        const d = new Date(dateStr);
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString().slice(0, 10);
+    }
+
     // Infobulle — state
     let tooltipActive   = false;
     let ndviLayerCanvas = null;
@@ -833,7 +840,11 @@ function evaluatePixel(s) {
             else                   counts.maraicher++;
         }
 
-        if (total === 0) return;
+        if (total === 0) {
+            // Aucun pixel valide = image entièrement transparente (nuages, absence de données)
+            setStatus('⚠️ Aucune donnée valide pour cette date/région. Essayez une autre date ou augmentez le seuil nuageux.', 's-err');
+            return;
+        }
         const ha = parseFloat(totalAreaHa);
 
         const cultures = [
@@ -1091,6 +1102,11 @@ function evaluatePixel(s) {
 
                         document.getElementById('downloadBtns').style.display = 'flex';
                         updateModeLabel();
+                        const ri = layer._resInfo;
+                        const resWarning = ri && ri.resM > 20
+                            ? ` · ⚠️ Résolution réduite : ${ri.resM}m/px (région trop grande — dessinez une zone plus petite pour 10m/px)`
+                            : ri ? ` · ✅ ${ri.resM}m/px` : '';
+                        setStatus(`✅ Image affichée · ${date}${resWarning}`, 's-ok');
                     } catch(err) {
                         setStatus('❌ '+err.message,'s-err');
                     }
@@ -1249,10 +1265,16 @@ function evaluatePixel(s) {
                 data: [{
                     type: "sentinel-2-l2a",
                     dataFilter: {
+                        // Fenêtre de 5 jours se terminant à la date sélectionnée.
+                        // Nabeul couvre 2 tuiles Sentinel-2 acquises à des jours différents
+                        // (cycle de 5 jours) : sans cette fenêtre, une des deux tuiles
+                        // apparaît toujours vide/transparente.
                         timeRange: {
-                            from: `${date}T00:00:00Z`,
+                            from: `${shiftDate(date, -4)}T00:00:00Z`,
                             to:   `${date}T23:59:59Z`
-                        }
+                        },
+                        mosaickingOrder: "mostRecent",
+                        maxCloudCoverage: parseInt(document.getElementById('cRange').value)
                     }
                 }]
             },
@@ -1444,7 +1466,12 @@ function evaluatePixel(s) {
                             properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
                         },
                         data: [{ type: "sentinel-2-l2a", dataFilter: {
-                            timeRange: { from: date + 'T00:00:00Z', to: date + 'T23:59:59Z' }
+                            timeRange: {
+                                from: shiftDate(date, -4) + 'T00:00:00Z',
+                                to:   date + 'T23:59:59Z'
+                            },
+                            mosaickingOrder: "mostRecent",
+                            maxCloudCoverage: parseInt(document.getElementById('cRange').value)
                         }}]
                     },
                     output: {
