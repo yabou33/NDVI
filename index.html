@@ -1238,12 +1238,10 @@ function evaluatePixel(s) {
             ? { type: "image/tiff", parameters: { compression: "deflate" } }
             : { type: "image/png" };
 
-        const useBbox = !selectedGeom
-            || selectedGeom.type === 'MultiPolygon'
-            || window._allTunisiaSelected;
-        const boundsInput = useBbox
-            ? { bbox: currentBbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } }
-            : { geometry: selectedGeom };
+        // Toujours utiliser bbox pour garantir l'alignement exact de l'overlay Leaflet.
+        // Utiliser geometry seule causait un décalage du NDVI pour les régions
+        // à géométrie complexe ou allongée (ex: Nabeul/Cap Bon).
+        const boundsInput = { bbox: currentBbox, properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" } };
 
         const body = {
             input: {
