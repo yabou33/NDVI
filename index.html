@@ -1330,6 +1330,113 @@ function evaluatePixel(s) {
         });
     }
 
+    // ── Ajouter la mosaïque en tête de la liste d'images ──
+    function addMosaicToImageList(mosaicLayer, fromDate, toDate, token) {
+        const list = document.getElementById('imageList');
+        document.getElementById('resultsCard').style.display = 'block';
+
+        const item = document.createElement('div');
+        item.className = 'img-item';
+        item.style.borderColor = '#f39c12';
+        item.style.background  = 'rgba(243,156,18,.08)';
+
+        // Badge mosaïque
+        const mBadge = document.createElement('span');
+        mBadge.style.cssText = 'font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700;background:rgba(243,156,18,.2);color:#f39c12;';
+        mBadge.textContent = '🧩 M';
+
+        // Label
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'date-label';
+        dateSpan.textContent = `📅 ${fromDate} → ${toDate}`;
+        dateSpan.style.fontSize = '10.5px';
+
+        // 👁 Toggle visibilité
+        const eyeBtn = document.createElement('button');
+        eyeBtn.className = 'eye-btn vis';
+        eyeBtn.textContent = '👁';
+        eyeBtn.title = 'Afficher/masquer la mosaïque';
+        eyeBtn.addEventListener('click', () => {
+            if (map.hasLayer(mosaicLayer)) {
+                map.removeLayer(mosaicLayer);
+                eyeBtn.classList.remove('vis');
+                delete activeLayers['mosaic'];
+            } else {
+                mosaicLayer.addTo(map);
+                eyeBtn.classList.add('vis');
+                activeLayers['mosaic'] = mosaicLayer;
+            }
+            document.getElementById('downloadBtns').style.display =
+                Object.keys(activeLayers).length > 0 ? 'flex' : 'none';
+        });
+
+        // Bouton PNG
+        const btnPng = document.createElement('button');
+        btnPng.className = 'side-btn';
+        btnPng.textContent = 'PNG';
+        btnPng.title = 'Télécharger PNG';
+        btnPng.style.cssText = 'font-size:10px;padding:3px 6px;border-radius:3px;border:1px solid var(--cyan);cursor:pointer;background:transparent;color:var(--cyan);font-weight:700;transition:.2s;';
+        btnPng.addEventListener('click', () => {
+            const a = document.createElement('a');
+            a.href = mosaicLayer._downloadUrl;
+            a.download = `NDVI_mosaic_${fromDate}_${toDate}.png`;
+            a.click();
+        });
+
+        // Bouton TIF
+        const btnTif = document.createElement('button');
+        btnTif.className = 'side-btn';
+        btnTif.textContent = 'TIF';
+        btnTif.title = 'Télécharger GeoTIFF';
+        btnTif.style.cssText = 'font-size:10px;padding:3px 6px;border-radius:3px;border:1px solid #27ae60;cursor:pointer;background:transparent;color:#27ae60;font-weight:700;transition:.2s;';
+        btnTif.addEventListener('click', async () => {
+            btnTif.textContent = '⏳';
+            btnTif.disabled = true;
+            try {
+                const t = await getToken();
+                const dLng = currentBbox[2]-currentBbox[0], dLat = currentBbox[3]-currentBbox[1];
+                const cy   = (currentBbox[1]+currentBbox[3])/2;
+                const wM = dLng*111320*Math.cos(cy*Math.PI/180), hM = dLat*111320;
+                let pixW = Math.round(wM/10), pixH = Math.round(hM/10);
+                const MAX=2500;
+                if(pixW>MAX||pixH>MAX){const s=MAX/Math.max(pixW,pixH);pixW=Math.round(pixW*s);pixH=Math.round(pixH*s);}
+                pixW=Math.max(64,pixW); pixH=Math.max(64,pixH);
+
+                const evalTif = '//VERSION=3\nfunction setup() {\n    return {\n        input: [{bands: ["B04", "B08", "dataMask"]}],\n        output: { bands: 1, sampleType: "FLOAT32" }\n    };\n}\nfunction evaluatePixel(sample) {\n    if (sample.dataMask === 0) return [NaN];\n    let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0000001);\n    return [ndvi];\n}';
+
+                const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
+                    method:'POST',
+                    headers:{'Authorization':'Bearer '+t,'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        input: {
+                            bounds:{bbox:currentBbox,properties:{crs:"http://www.opengis.net/def/crs/OGC/1.3/CRS84"}},
+                            data:[{type:"sentinel-2-l2a",dataFilter:{
+                                timeRange:{from:`${fromDate}T00:00:00Z`,to:`${toDate}T23:59:59Z`},
+                                mosaickingOrder:"leastCC", maxCloudCoverage:20
+                            }}]
+                        },
+                        output:{width:pixW,height:pixH,responses:[{identifier:"default",format:{type:"image/tiff",parameters:{compression:"deflate"}}}]},
+                        evalscript: evalTif
+                    })
+                });
+                if(!r.ok) throw new Error('GeoTIFF: '+r.status);
+                const blob = await r.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `NDVI_mosaic_${fromDate}_${toDate}.tif`;
+                a.click();
+            } catch(e) {
+                setStatus('❌ GeoTIFF mosaïque: '+e.message,'s-err');
+            }
+            btnTif.textContent = 'TIF';
+            btnTif.disabled = false;
+        });
+
+        item.append(mBadge, eyeBtn, dateSpan, btnPng, btnTif);
+        // Insérer en tête de liste
+        list.insertBefore(item, list.firstChild);
+    }
+
     // Charger une couche NDVI valeurs en arrière-plan pour l'infobulle
     async function loadNdviValueLayer(date, token) {
         try {
@@ -1600,6 +1707,9 @@ function evaluatePixel(s) {
             layer.addTo(map);
             layer._downloadUrl  = url;
             layer._downloadDate = `mosaic_${fromDate}_${toDate}`;
+            layer._isMosaic     = true;
+            layer._mosaicFrom   = fromDate;
+            layer._mosaicTo     = toDate;
             layer._resInfo      = { w: pixW, h: pixH, resM };
             window._mosaicLayer = layer;
 
@@ -1615,6 +1725,9 @@ function evaluatePixel(s) {
             document.getElementById('downloadBtns').style.display = 'flex';
             activeLayers['mosaic'] = layer;
             updateModeLabel();
+
+            // Ajouter la mosaïque dans la liste d'images
+            addMosaicToImageList(layer, fromDate, toDate, token);
 
             const resWarning = resM > 20
                 ? `⚠️ ${resM}m/px (zone large)`
@@ -1774,7 +1887,7 @@ function evaluatePixel(s) {
     map.on('mouseout', () => { tooltip.style.display = 'none'; });
 
     document.getElementById('downloadBtn').addEventListener('click', () => {
-        const src = Object.values(activeLayers).pop() || cLayerL;
+        const src = window._mosaicLayer || Object.values(activeLayers).pop() || cLayerL;
         if (!src) return;
         const a = document.createElement('a');
         a.href = src._downloadUrl;
@@ -1783,7 +1896,7 @@ function evaluatePixel(s) {
     });
 
     document.getElementById('downloadTifBtn').addEventListener('click', async () => {
-        const src = Object.values(activeLayers).pop() || cLayerL;
+        const src = window._mosaicLayer || Object.values(activeLayers).pop() || cLayerL;
         if (!src) return;
         const btn = document.getElementById('downloadTifBtn');
         btn.disabled = true;
@@ -1792,6 +1905,7 @@ function evaluatePixel(s) {
             const token  = await getToken();
             const mode   = document.getElementById('modeSelect').value;
             const date   = src._downloadDate;
+            const isMosaic = src._isMosaic;
 
             const dLng = currentBbox[2]-currentBbox[0], dLat = currentBbox[3]-currentBbox[1];
             const cy   = (currentBbox[1]+currentBbox[3])/2;
@@ -1804,6 +1918,13 @@ function evaluatePixel(s) {
 
             const evalscriptNDVI = '//VERSION=3\nfunction setup() {\n    return {\n        input: [{bands: ["B04", "B08", "dataMask"]}],\n        output: { bands: 1, sampleType: "FLOAT32" }\n    };\n}\nfunction evaluatePixel(sample) {\n    if (sample.dataMask === 0) return [NaN];\n    let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.0000001);\n    return [ndvi];\n}';
 
+            // Adapter timeRange et mosaicking selon image classique ou mosaïque
+            const dataFilter = isMosaic
+                ? { timeRange: { from: `${src._mosaicFrom}T00:00:00Z`, to: `${src._mosaicTo}T23:59:59Z` },
+                    mosaickingOrder: "leastCC", maxCloudCoverage: 20 }
+                : { timeRange: { from: shiftDate(date, -4) + 'T00:00:00Z', to: date + 'T23:59:59Z' },
+                    mosaickingOrder: "mostRecent", maxCloudCoverage: parseInt(document.getElementById('cRange').value) };
+
             const r = await fetch('https://services.sentinel-hub.com/api/v1/process', {
                 method: 'POST',
                 headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -1813,14 +1934,7 @@ function evaluatePixel(s) {
                             bbox: currentBbox,
                             properties: { crs: "http://www.opengis.net/def/crs/OGC/1.3/CRS84" }
                         },
-                        data: [{ type: "sentinel-2-l2a", dataFilter: {
-                            timeRange: {
-                                from: shiftDate(date, -4) + 'T00:00:00Z',
-                                to:   date + 'T23:59:59Z'
-                            },
-                            mosaickingOrder: "mostRecent",
-                            maxCloudCoverage: parseInt(document.getElementById('cRange').value)
-                        }}]
+                        data: [{ type: "sentinel-2-l2a", dataFilter }]
                     },
                     output: {
                         width: pixW, height: pixH,
