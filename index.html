@@ -156,6 +156,8 @@
             </div>
             <div class="range-label"><span>Nuages max</span><strong><span id="cVal">5</span>%</strong></div>
             <input type="range" id="cRange" min="0" max="100" value="5" oninput="document.getElementById('cVal').textContent=this.value">
+            <div class="range-label"><span>Couverture min</span><strong><span id="covVal">90</span>%</strong></div>
+            <input type="range" id="covRange" min="0" max="100" value="90" oninput="document.getElementById('covVal').textContent=this.value">
             <div class="range-label"><span>Images max</span><strong><span id="lVal">50</span></strong></div>
             <input type="range" id="lRange" min="5" max="100" value="50" oninput="document.getElementById('lVal').textContent=this.value">
             <button class="btn btn-cyan" id="searchBtn" style="margin-top:9px;">🔍 Rechercher les images</button>
@@ -1057,30 +1059,76 @@ function evaluatePixel(s) {
 
             } while (nextToken);
 
-            const cMax  = parseInt(document.getElementById('cRange').value);
-            const lMax  = parseInt(document.getElementById('lRange').value);
+            const cMax   = parseInt(document.getElementById('cRange').value);
+            const lMax   = parseInt(document.getElementById('lRange').value);
+            const covMin = parseInt(document.getElementById('covRange').value);
 
-            // Dédupliquer par date (garder la moins nuageuse par jour)
-            // Appliqué sur TOUS les résultats paginés
-            const byDate = {};
+            setStatus(`<span class="spin"></span>Analyse de la couverture…`,'s-info');
+
+            // ── Grouper toutes les tuiles par date, filtrer par nuages ──
+            const tilesByDate = {};
             allFeatures.forEach(f => {
                 const d = f.properties.datetime.split('T')[0];
                 const c = f.properties['eo:cloud_cover'] ?? 100;
-                if (c <= cMax && (!byDate[d] || c < (byDate[d].properties['eo:cloud_cover']??100)))
-                    byDate[d] = f;
+                if (c <= cMax) {
+                    if (!tilesByDate[d]) tilesByDate[d] = [];
+                    tilesByDate[d].push(f);
+                }
             });
-            lastFeatures = Object.values(byDate)
+
+            // ── Calculer le % de couverture de chaque date ──
+            // Zone de référence = bbox sélectionné transformé en polygone Turf
+            const bboxPoly = turf.bboxPolygon(currentBbox);
+            const refArea  = turf.area(bboxPoly);
+
+            const datesWithCoverage = [];
+            for (const [date, tiles] of Object.entries(tilesByDate)) {
+                let coverage = 0;
+                try {
+                    // Union de toutes les tuiles du jour
+                    let merged = null;
+                    for (const tile of tiles) {
+                        const tilePoly = turf.intersect(
+                            turf.feature(tile.geometry),
+                            bboxPoly
+                        );
+                        if (!tilePoly) continue;
+                        merged = merged ? turf.union(merged, tilePoly) : tilePoly;
+                    }
+                    if (merged) {
+                        coverage = Math.round(turf.area(merged) / refArea * 100);
+                    }
+                } catch(e) {
+                    // Fallback si union échoue : compter le nombre de tuiles
+                    // (heuristique — mieux que rien)
+                    coverage = Math.min(100, tiles.length * 15);
+                }
+
+                // Garder la tuile la moins nuageuse comme représentante
+                const best = tiles.reduce((a, b) =>
+                    (a.properties['eo:cloud_cover']??100) < (b.properties['eo:cloud_cover']??100) ? a : b
+                );
+                // Stocker le % de couverture dans les propriétés
+                best.properties._coverage = coverage;
+
+                if (coverage >= covMin) {
+                    datesWithCoverage.push(best);
+                }
+            }
+
+            lastFeatures = datesWithCoverage
                 .sort((a,b) => b.properties.datetime.localeCompare(a.properties.datetime))
                 .slice(0, lMax);
 
+            const totalDates = Object.keys(tilesByDate).length;
             if (!lastFeatures.length) {
-                setStatus(`⚠️ Aucune image ≤ ${cMax}% nuages (${allFeatures.length} tuiles analysées). Essayez d'augmenter le seuil.`,'s-err');
+                setStatus(`⚠️ Aucune date avec ≥ ${covMin}% de couverture et ≤ ${cMax}% nuages (${totalDates} dates / ${allFeatures.length} tuiles analysées). Réduisez la couverture min ou augmentez le seuil nuages.`,'s-err');
                 this.disabled=false; return;
             }
 
             buildImageList(lastFeatures, token);
             updateChart(lastFeatures);
-            setStatus(`✅ ${lastFeatures.length} dates disponibles (${allFeatures.length} tuiles analysées sur ${pageNum} page${pageNum>1?'s':''}).`,'s-ok');
+            setStatus(`✅ ${lastFeatures.length} dates avec ≥${covMin}% couverture (sur ${totalDates} dates, ${allFeatures.length} tuiles, ${pageNum} page${pageNum>1?'s':''}).`,'s-ok');
 
         } catch(e) {
             console.error(e);
@@ -1127,6 +1175,15 @@ function evaluatePixel(s) {
             cloudSpan.className   = 'cloud-tag '+ctag;
             cloudSpan.textContent = '☁ '+clouds+'%';
 
+            // Couverture
+            const cov = f.properties._coverage ?? 0;
+            const covSpan       = document.createElement('span');
+            covSpan.style.cssText = 'font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600;' +
+                (cov >= 90 ? 'background:rgba(39,174,96,.15);color:#69f0ae;' :
+                 cov >= 60 ? 'background:rgba(243,156,18,.15);color:#ffd54f;' :
+                             'background:rgba(231,76,60,.15);color:#ff8a80;');
+            covSpan.textContent = '📐'+cov+'%';
+
             // Bouton L
             const btnL = document.createElement('button');
             btnL.textContent = 'L';
@@ -1146,7 +1203,7 @@ function evaluatePixel(s) {
             badge.className = 'sel-badge-slot';
             badge.style.minWidth = '20px';
 
-            item.append(eyeBtn, dateSpan, cloudSpan, btnL, btnR, badge);
+            item.append(eyeBtn, dateSpan, cloudSpan, covSpan, btnL, btnR, badge);
             list.appendChild(item);
 
             // Enregistrer les refs DOM pour accès direct dans refreshSelectionUI
