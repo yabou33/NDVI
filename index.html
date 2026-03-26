@@ -152,10 +152,10 @@
             <div class="card-title"><span class="ct-dot"></span>Période & filtres</div>
             <div class="date-row">
                 <input type="date" id="dateStart" value="2025-01-01">
-                <input type="date" id="dateEnd"   value="2026-03-16">
+                <input type="date" id="dateEnd"   value="2026-03-26">
             </div>
-            <div class="range-label"><span>Nuages max</span><strong><span id="cVal">30</span>%</strong></div>
-            <input type="range" id="cRange" min="0" max="100" value="30" oninput="document.getElementById('cVal').textContent=this.value">
+            <div class="range-label"><span>Nuages max</span><strong><span id="cVal">5</span>%</strong></div>
+            <input type="range" id="cRange" min="0" max="100" value="5" oninput="document.getElementById('cVal').textContent=this.value">
             <div class="range-label"><span>Images max</span><strong><span id="lVal">50</span></strong></div>
             <input type="range" id="lRange" min="5" max="100" value="50" oninput="document.getElementById('lVal').textContent=this.value">
             <button class="btn btn-cyan" id="searchBtn" style="margin-top:9px;">🔍 Rechercher les images</button>
@@ -1018,30 +1018,55 @@ function evaluatePixel(s) {
             const token = await getToken();
             setStatus('<span class="spin"></span>Recherche en cours...','s-info');
 
-            const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search',{
-                method:'POST',
-                headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-                body:JSON.stringify({
+            // ── Pagination : récupérer TOUTES les pages du catalogue ──
+            let allFeatures = [];
+            let nextToken = null;
+            let pageNum = 0;
+
+            do {
+                pageNum++;
+                const requestBody = {
                     bbox:        currentBbox,
                     datetime:    `${document.getElementById('dateStart').value}T00:00:00Z/${document.getElementById('dateEnd').value}T23:59:59Z`,
                     collections: ["sentinel-2-l2a"],
                     limit:       100
-                })
-            });
-            if (!res.ok) {
-                const e = await res.json().catch(()=>({}));
-                throw new Error(`Catalog ${res.status}: ${e.description||JSON.stringify(e)}`);
-            }
+                };
+                if (nextToken) requestBody.next = nextToken;
 
-            const data  = await res.json();
+                const res = await fetch('https://services.sentinel-hub.com/api/v1/catalog/1.0.0/search',{
+                    method:'POST',
+                    headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+                    body:JSON.stringify(requestBody)
+                });
+                if (!res.ok) {
+                    const e = await res.json().catch(()=>({}));
+                    throw new Error(`Catalog ${res.status}: ${e.description||JSON.stringify(e)}`);
+                }
+
+                const data = await res.json();
+                const features = data.features || [];
+                allFeatures = allFeatures.concat(features);
+
+                // Sentinel Hub renvoie context.next pour la page suivante
+                nextToken = data.context?.next ?? null;
+
+                setStatus(`<span class="spin"></span>Recherche page ${pageNum}… (${allFeatures.length} tuiles trouvées)`,'s-info');
+
+                // Sécurité : max 50 pages (5000 tuiles) pour éviter boucle infinie
+                if (pageNum >= 50) break;
+
+            } while (nextToken);
+
             const cMax  = parseInt(document.getElementById('cRange').value);
             const lMax  = parseInt(document.getElementById('lRange').value);
+
             // Dédupliquer par date (garder la moins nuageuse par jour)
+            // Appliqué sur TOUS les résultats paginés
             const byDate = {};
-            (data.features||[]).forEach(f => {
+            allFeatures.forEach(f => {
                 const d = f.properties.datetime.split('T')[0];
                 const c = f.properties['eo:cloud_cover'] ?? 100;
-                if (c < cMax && (!byDate[d] || c < (byDate[d].properties['eo:cloud_cover']??100)))
+                if (c <= cMax && (!byDate[d] || c < (byDate[d].properties['eo:cloud_cover']??100)))
                     byDate[d] = f;
             });
             lastFeatures = Object.values(byDate)
@@ -1049,13 +1074,13 @@ function evaluatePixel(s) {
                 .slice(0, lMax);
 
             if (!lastFeatures.length) {
-                setStatus('⚠️ Aucune image. Augmentez le seuil nuageux.','s-err');
+                setStatus(`⚠️ Aucune image ≤ ${cMax}% nuages (${allFeatures.length} tuiles analysées). Essayez d'augmenter le seuil.`,'s-err');
                 this.disabled=false; return;
             }
 
             buildImageList(lastFeatures, token);
             updateChart(lastFeatures);
-            setStatus(`✅ ${lastFeatures.length} images disponibles.`,'s-ok');
+            setStatus(`✅ ${lastFeatures.length} dates disponibles (${allFeatures.length} tuiles analysées sur ${pageNum} page${pageNum>1?'s':''}).`,'s-ok');
 
         } catch(e) {
             console.error(e);
