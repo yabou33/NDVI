@@ -199,6 +199,8 @@
                 <option value="classify_a">🎨 Classification Multi-cultures</option>
                 <option value="true_color">📷 Couleurs réelles (RGB)</option>
             </select>
+            <div class="range-label" style="margin-top:8px;"><span>Transparence NDVI</span><strong><span id="opVal">12</span>%</strong></div>
+            <input type="range" id="opRange" min="0" max="100" value="12" oninput="updateLayerOpacity(this.value)">
         </div>
 
         <!-- Courbe -->
@@ -594,6 +596,19 @@ function evaluatePixel(s) {
     renderLegend('ndvi_cereal');
     document.getElementById('modeSelect').onchange = () =>
         renderLegend(document.getElementById('modeSelect').value);
+
+    // ── Transparence des couches NDVI ──
+    function updateLayerOpacity(pct) {
+        document.getElementById('opVal').textContent = pct;
+        const opacity = 1 - (parseInt(pct) / 100);
+        // Toutes les couches images actives
+        Object.values(activeLayers).forEach(l => { if (l.setOpacity) l.setOpacity(opacity); });
+        // Mosaïque
+        if (window._mosaicLayer && window._mosaicLayer.setOpacity) window._mosaicLayer.setOpacity(opacity);
+        // Couches comparaison
+        if (cLayerL && cLayerL.setOpacity) cLayerL.setOpacity(opacity);
+        if (cLayerR && cLayerR.setOpacity) cLayerR.setOpacity(opacity);
+    }
 
     /* ═══════════════════════════════════════════════════════
        CARTE
@@ -1474,7 +1489,7 @@ function evaluatePixel(s) {
 
         const blob  = await r.blob();
         const url   = URL.createObjectURL(blob);
-        const layer = L.imageOverlay(url, currentBounds, { opacity: 0.88 });
+        const layer = L.imageOverlay(url, currentBounds, { opacity: 1 - (parseInt(document.getElementById('opRange').value) / 100) });
         layer._downloadUrl  = url;
         layer._downloadDate = date;
         layer._isTiff       = asTiff;
@@ -1581,7 +1596,7 @@ function evaluatePixel(s) {
                 map.removeLayer(window._mosaicLayer);
             }
 
-            const layer = L.imageOverlay(url, currentBounds, { opacity: 0.88 });
+            const layer = L.imageOverlay(url, currentBounds, { opacity: 1 - (parseInt(document.getElementById('opRange').value) / 100) });
             layer.addTo(map);
             layer._downloadUrl  = url;
             layer._downloadDate = `mosaic_${fromDate}_${toDate}`;
