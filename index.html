@@ -490,8 +490,9 @@ if (_zipEl) {
     /* ═══════════════════════════════════════════════════════
        CONFIG
     ═══════════════════════════════════════════════════════ */
-    const CLIENT_ID     = "b875aa07-99cf-43e1-bc81-3287e98f51f2";
-    const CLIENT_SECRET = "328nOdjYDRo2GsTrAVnIMRNNiMbVuDy0";
+    // Credentials Sentinel Hub stockés côté serveur (Cloudflare Worker).
+    // Remplace l'URL ci-dessous par celle de TON worker après déploiement.
+    const TOKEN_PROXY_URL = "https://agrimap-token.VOTRE-SOUS-DOMAINE.workers.dev";
 
     /* ═══════════════════════════════════════════════════════
        EVALSCRIPTS
@@ -1033,11 +1034,7 @@ function evaluatePixel(s) {
     ═══════════════════════════════════════════════════════ */
     async function getToken() {
         if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-        const r = await fetch('https://services.sentinel-hub.com/oauth/token',{
-            method:'POST',
-            headers:{'Content-Type':'application/x-www-form-urlencoded'},
-            body:new URLSearchParams({grant_type:'client_credentials',client_id:CLIENT_ID,client_secret:CLIENT_SECRET})
-        });
+        const r = await fetch(TOKEN_PROXY_URL, { method:'POST' });
         if (!r.ok) throw new Error('Auth échouée ('+r.status+')');
         const d = await r.json();
         cachedToken = d.access_token;
