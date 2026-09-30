@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tomato Dataset Builder — EZZAYRA</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#12151a; --panel:#1a1f27; --panel2:#222937; --line:#2c3543;
+    --ink:#e6ebf2; --muted:#8b97a8; --faint:#5c6675;
+    --leaf:#4ba361; --leaf-d:#357a48; --gold:#d9a441; --tom:#d94f3d;
+    --blue:#4f9dd9; --focus:#7cc4ff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:grid; grid-template-columns:380px 1fr; grid-template-rows:100vh;
+  }
+  /* ---- Sidebar ---- */
+  aside{
+    background:var(--panel); border-right:1px solid var(--line);
+    overflow-y:auto; padding:0;
+  }
+  .brand{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+  .brand h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.2px}
+  .brand p{margin:3px 0 0;color:var(--muted);font-size:12px}
+  .sec{border-bottom:1px solid var(--line);padding:14px 18px}
+  .sec h2{margin:0 0 10px;font-size:11px;font-weight:600;color:var(--faint);
+    letter-spacing:.6px;text-transform:uppercase}
+  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);
+    color:var(--ink);border-radius:6px;padding:7px 9px;font-size:13px}
+  input:focus,select:focus{outline:2px solid var(--focus);outline-offset:-1px;border-color:transparent}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .hint{font-size:11px;color:var(--faint);margin-top:4px;line-height:1.4}
+  button{cursor:pointer;border:none;border-radius:6px;font-size:13px;font-weight:500;
+    padding:9px 12px;transition:filter .12s,background .12s}
+  button:hover:not(:disabled){filter:brightness(1.1)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .btn-primary{background:var(--leaf);color:#08140b;width:100%}
+  .btn-gold{background:var(--gold);color:#221800;width:100%}
+  .btn-ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+  .drop{border:1.5px dashed var(--line);border-radius:8px;padding:20px 12px;
+    text-align:center;color:var(--muted);cursor:pointer;transition:border-color .15s,background .15s}
+  .drop:hover{border-color:var(--leaf);background:rgba(75,163,97,.05)}
+  .drop strong{color:var(--ink);font-weight:600}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+  .stat{background:var(--panel2);border-radius:6px;padding:8px 10px}
+  .stat .k{font-size:11px;color:var(--faint)}
+  .stat .v{font-size:18px;font-weight:600;margin-top:1px}
+  .chk{display:flex;align-items:center;gap:7px;margin:5px 0}
+  .chk input{width:auto}
+  .chk label{margin:0;color:var(--ink);font-size:13px}
+  details summary{cursor:pointer;color:var(--muted);font-size:12px;padding:2px 0}
+  /* ---- Main ---- */
+  main{display:grid;grid-template-rows:1fr 240px;overflow:hidden}
+  #map{width:100%;height:100%;background:#0d1013}
+  .console{background:var(--panel);border-top:1px solid var(--line);
+    display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+  .console .bar{display:flex;align-items:center;justify-content:space-between;
+    padding:8px 14px;border-bottom:1px solid var(--line)}
+  .console .bar b{font-size:12px;color:var(--faint);letter-spacing:.5px;text-transform:uppercase}
+  .progress{height:5px;background:var(--panel2);border-radius:3px;width:200px;overflow:hidden}
+  .progress i{display:block;height:100%;width:0;background:var(--leaf);transition:width .2s}
+  #log{overflow-y:auto;padding:8px 14px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+  #log .l{white-space:pre-wrap;color:var(--muted)}
+  #log .ok{color:var(--leaf)} #log .err{color:var(--tom)}
+  #log .warn{color:var(--gold)} #log .dim{color:var(--faint)}
+  /* Leaflet popup dark */
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel2);color:var(--ink)}
+  .leaflet-popup-content{font-size:12px;margin:10px 12px}
+  .leaflet-popup-content b{color:var(--gold)}
+  .pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:20px;
+    background:var(--panel2);border:1px solid var(--line);color:var(--muted);margin-left:6px}
+  .pill.done{color:var(--leaf);border-color:var(--leaf-d)}
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand">
+    <h1>🍅 Tomato Dataset Builder</h1>
+    <p>Parcelles → météo + indices → dataset IA</p>
+  </div>
+
+  <div class="sec">
+    <h2>1 · Données parcelles</h2>
+    <div class="drop" id="drop">
+      <strong>Importer l'Excel</strong><br>
+      <span style="font-size:12px">glisser-déposer ou cliquer</span>
+      <input type="file" id="file" accept=".xlsx,.xls" hidden>
+    </div>
+    <div class="stat-grid" id="stats" style="display:none">
+      <div class="stat"><div class="k">Parcelles</div><div class="v" id="s-parc">0</div></div>
+      <div class="stat"><div class="k">Surface tot. (ha)</div><div class="v" id="s-surf">0</div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>2 · Fenêtre & degrés-jours</h2>
+    <div class="row2">
+      <div><label>GDD T-base (°C)</label><input type="number" id="tbase" value="10" step="0.5"></div>
+      <div><label>GDD T-plafond (°C)</label><input type="number" id="tcap" value="30" step="0.5"></div>
+    </div>
+    <div class="row2">
+      <div><label>Début : plantation +j</label><input type="number" id="offStart" value="30"></div>
+      <div><label>Fin : récolte −j</label><input type="number" id="offEnd" value="7"></div>
+    </div>
+    <p class="hint">Indices calculés sur [plantation+30j → récolte−7j]. GDD cumulés depuis la plantation (méthode SICAM, T-base 10 °C).</p>
+  </div>
+
+  <div class="sec">
+    <h2>3 · Indices végétation</h2>
+    <div class="chk"><input type="checkbox" id="i-ndvi" checked><label for="i-ndvi">NDVI <span class="dim">— vigueur / couverture</span></label></div>
+    <div class="chk"><input type="checkbox" id="i-evi" checked><label for="i-evi">EVI <span class="dim">— biomasse forte densité</span></label></div>
+    <div class="chk"><input type="checkbox" id="i-ndwi" checked><label for="i-ndwi">NDWI <span class="dim">— eau / irrigation</span></label></div>
+    <div class="chk"><input type="checkbox" id="i-ndmi" checked><label for="i-ndmi">NDMI <span class="dim">— humidité végétation</span></label></div>
+    <div class="row2" style="margin-top:8px">
+      <div><label>Pas temporel (jours)</label><input type="number" id="agg" value="10"></div>
+      <div><label>Couv. nuage max %</label><input type="number" id="cloud" value="40"></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>4 · Sentinel Hub</h2>
+    <label>URL du proxy token (sh_token.php)</label>
+    <input type="text" id="proxy" value="sh_token.php" placeholder="sh_token.php">
+    <p class="hint">Le même <code>sh_token.php</code> qu'AgriSim, déjà en place sur ton OVH. Il renvoie le token ; les appels indices partent ensuite en direct avec ce token (plateforme services.sentinel-hub.com).</p>
+    <p class="hint">Météo via Open-Meteo Archive (sans clé). Indices via Sentinel Hub Statistical API (S2-L2A), à travers le proxy.</p>
+  </div>
+
+  <div class="sec">
+    <h2>5 · Collecte</h2>
+    <button class="btn-primary" id="run" disabled>▶ Lancer la collecte</button>
+    <div class="row2" style="margin-top:10px">
+      <button class="btn-ghost" id="exp-json" disabled>Export JSON</button>
+      <button class="btn-ghost" id="exp-csv" disabled>Export CSV</button>
+    </div>
+    <p class="hint">JSON = structure complète (séries temporelles). CSV = table plate, une ligne par (parcelle × date), prête pour l'entraînement.</p>
+  </div>
+</aside>
+
+<main>
+  <div id="map"></div>
+  <div class="console">
+    <div class="bar">
+      <b>Journal</b>
+      <div class="progress"><i id="prog"></i></div>
+    </div>
+    <div id="log"></div>
+  </div>
+</main>
+
+<script>
+/* ============================================================
+   Tomato Dataset Builder — logique
+   ============================================================ */
+const $ = id => document.getElementById(id);
+let PARCELS = [];      // {id, meta, coords:[[lat,lng]...], layer, result}
+let COLLECTED = null;  // dataset final
+let MEAN_PLANT = null, MEAN_RECOLTE = null;  // dates moyennes (repli si manquante)
+
+/* ---------- Carte ---------- */
+const map = L.map('map',{zoomControl:true}).setView([35.78,10.02],11);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  {attribution:'Esri',maxZoom:19}).addTo(map);
+let parcelGroup = L.featureGroup().addTo(map);
+
+/* ---------- Log ---------- */
+function log(msg,cls='l'){
+  const d=document.createElement('div'); d.className=cls; d.textContent=msg;
+  $('log').appendChild(d); $('log').scrollTop=$('log').scrollHeight;
+}
+function prog(p){ $('prog').style.width=(p*100).toFixed(1)+'%'; }
+
+/* ---------- Import Excel ---------- */
+$('drop').onclick=()=>$('file').click();
+['dragover','dragenter'].forEach(e=>$('drop').addEventListener(e,ev=>{ev.preventDefault();$('drop').style.borderColor='var(--leaf)';}));
+['dragleave','drop'].forEach(e=>$('drop').addEventListener(e,ev=>{ev.preventDefault();$('drop').style.borderColor='';}));
+$('drop').addEventListener('drop',ev=>{ if(ev.dataTransfer.files[0]) readFile(ev.dataTransfer.files[0]); });
+$('file').addEventListener('change',ev=>{ if(ev.target.files[0]) readFile(ev.target.files[0]); });
+
+function readFile(f){
+  log('Lecture de '+f.name+' …','dim');
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:null});
+      loadParcels(rows);
+    }catch(err){ log('Erreur lecture: '+err.message,'err'); }
+  };
+  r.readAsArrayBuffer(f);
+}
+
+function toISO(v){
+  if(v==null) return null;
+  if(v instanceof Date) return v.toISOString().slice(0,10);
+  const s=String(v).trim();
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m?`${m[1]}-${m[2]}-${m[3]}`:s.slice(0,10);
+}
+
+function loadParcels(rows){
+  PARCELS=[]; parcelGroup.clearLayers();
+  let totSurf=0, bad=0;
+  rows.forEach((row,idx)=>{
+    const id=row['Parcelle']||('P'+idx);
+    let coords=[];
+    try{
+      const ov=JSON.parse(row['Overlay']);
+      coords=ov.map(p=>[p.lat,p.lng]);
+    }catch(_){ bad++; return; }
+    if(coords.length<3){ bad++; return; }
+    const meta={
+      surface_m2:row['Surface m2'], densite_ha:row['Densité /Ha'],
+      nbr_plants:row['Nbr Plants'], surface_plantee:row['Surface Plantee'],
+      season_id:row['Season Id'], intercalaire:row['Intercalaire'],
+      date_plantation:toISO(row['Date Plantation']),
+      date_recolte:toISO(row['Date Recolte'])
+    };
+    totSurf += (Number(row['Surface m2'])||0);
+    const layer=L.polygon(coords,{color:'#00e5ff',weight:2.5,fillColor:'#00e5ff',fillOpacity:.18})
+      .bindPopup(`<b>${id}</b><br>Plantation: ${meta.date_plantation}<br>Récolte: ${meta.date_recolte}<br>Surface: ${(Number(meta.surface_m2)||0).toLocaleString()} m²<span class="pill" id="pill-${idx}">en attente</span>`);
+    parcelGroup.addLayer(layer);
+    PARCELS.push({idx,id,meta,coords,layer,result:null});
+  });
+  if(PARCELS.length){ map.fitBounds(parcelGroup.getBounds(),{padding:[30,30]}); }
+  // dates moyennes (repli pour parcelles à date manquante)
+  const plants=PARCELS.map(p=>p.meta.date_plantation).filter(validDate);
+  const recs=PARCELS.map(p=>p.meta.date_recolte).filter(validDate);
+  MEAN_PLANT=meanDate(plants); MEAN_RECOLTE=meanDate(recs);
+  $('stats').style.display='grid';
+  $('s-parc').textContent=PARCELS.length;
+  $('s-surf').textContent=(totSurf/10000).toFixed(1);
+  $('run').disabled = PARCELS.length===0;
+  log(`✓ ${PARCELS.length} parcelles chargées`+(bad?` (${bad} ignorées: overlay invalide)`:''),'ok');
+  if(MEAN_PLANT&&MEAN_RECOLTE)
+    log(`  dates moyennes de repli — plantation ${MEAN_PLANT}, récolte ${MEAN_RECOLTE}`,'dim');
+}
+
+/* moyenne d'une liste de dates ISO → date ISO */
+function meanDate(list){
+  if(!list.length) return null;
+  const ms=list.map(d=>new Date(d+'T00:00:00Z').getTime());
+  const avg=ms.reduce((a,b)=>a+b,0)/ms.length;
+  return new Date(avg).toISOString().slice(0,10);
+}
+
+/* ---------- Centroïde (pour Open-Meteo) ---------- */
+function centroid(coords){
+  let la=0,lo=0; coords.forEach(c=>{la+=c[0];lo+=c[1];});
+  return [la/coords.length, lo/coords.length];
+}
+/* polygon → GeoJSON ring [lng,lat], fermé */
+function ring(coords){
+  const r=coords.map(c=>[c[1],c[0]]);
+  const f=r[0],l=r[r.length-1];
+  if(f[0]!==l[0]||f[1]!==l[1]) r.push([f[0],f[1]]);
+  return r;
+}
+function addDays(iso,n){
+  const d=new Date(iso+'T00:00:00Z');
+  if(isNaN(d.getTime())) throw new Error('date invalide: '+iso);
+  d.setUTCDate(d.getUTCDate()+n);
+  return d.toISOString().slice(0,10);
+}
+function validDate(iso){ return iso && !isNaN(new Date(iso+'T00:00:00Z').getTime()); }
+
+/* bbox [minLng,minLat,maxLng,maxLat] depuis coords [[lat,lng]...] */
+function bboxOf(coords){
+  let laMin=90,laMax=-90,loMin=180,loMax=-180;
+  coords.forEach(([la,lo])=>{ if(la<laMin)laMin=la; if(la>laMax)laMax=la;
+    if(lo<loMin)loMin=lo; if(lo>loMax)loMax=lo; });
+  return [loMin,laMin,loMax,laMax];
+}
+/* dimensions pixels ~10 m/px, plafonnées (méthode AgriSim) */
+function bboxDims(bb,maxPx=512){
+  const mx=111320*Math.cos((bb[1]+bb[3])/2*Math.PI/180), my=110540;
+  let w=Math.max(32,Math.round((bb[2]-bb[0])*mx/10)),
+      h=Math.max(32,Math.round((bb[3]-bb[1])*my/10));
+  const k=Math.max(w,h)/maxPx;
+  if(k>1){ w=Math.round(w/k); h=Math.round(h/k); }
+  return {w,h};
+}
+
+/* ---------- Open-Meteo → GDD ---------- */
+async function fetchWeatherGDD(lat,lng,plant,end,tbase,tcap){
+  const url=`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}`
+    +`&start_date=${plant}&end_date=${end}`
+    +`&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration`
+    +`&timezone=UTC`;
+  const r=await fetch(url);
+  if(!r.ok) throw new Error('Open-Meteo '+r.status);
+  const j=await r.json();
+  const d=j.daily; const out=[]; let cum=0;
+  for(let i=0;i<d.time.length;i++){
+    let tmax=d.temperature_2m_max[i], tmin=d.temperature_2m_min[i];
+    if(tmax==null||tmin==null){ out.push({date:d.time[i],gdd_day:null,gdd_cum:cum,tmax,tmin,
+      precip:d.precipitation_sum[i],et0:d.et0_fao_evapotranspiration[i]}); continue; }
+    // méthode SICAM: bornage tmax au plafond, tmin au plancher
+    let tx=Math.min(tmax,tcap), tn=Math.max(tmin,tbase);
+    let gdd=Math.max(0,((tx+tn)/2)-tbase);
+    cum+=gdd;
+    out.push({date:d.time[i],gdd_day:+gdd.toFixed(2),gdd_cum:+cum.toFixed(1),
+      tmax,tmin,precip:d.precipitation_sum[i],et0:d.et0_fao_evapotranspiration[i]});
+  }
+  return out;
+}
+
+/* ---------- Sentinel Hub OAuth (via proxy PHP) ---------- */
+let SH_TOKEN=null, SH_TOKEN_EXP=0;
+
+/* SH_STATS = endpoint Statistical API (plateforme shub, comme AgriSim) */
+const SH_STATS_URL='https://services.sentinel-hub.com/api/v1/statistics';
+
+/* Token via le MÊME proxy que AgriSim (sh_token.php) : l'URL EST l'endpoint,
+   la réponse est {access_token, expires_in}. Pas de ?action=. */
+async function shAuth(){
+  if(SH_TOKEN && Date.now()<SH_TOKEN_EXP-60000) return SH_TOKEN;
+  const url=$('proxy').value.trim()||'sh_token.php';
+  const r=await fetch(url,{cache:'no-store'});
+  const t=await r.text();
+  if(!r.ok){ let m='proxy '+r.status; try{const j=JSON.parse(t);m=j.detail||j.error||m;}catch(_){} throw new Error(m); }
+  let j; try{ j=JSON.parse(t); }catch(_){ throw new Error('réponse proxy non-JSON: '+t.slice(0,120)); }
+  if(!j.access_token) throw new Error('pas de token: '+(j.error||t.slice(0,120)));
+  SH_TOKEN=j.access_token; SH_TOKEN_EXP=Date.now()+((j.expires_in||3500)*1000);
+  log('✓ Token Sentinel Hub obtenu (via '+url+')','ok');
+  return SH_TOKEN;
+}
+
+/* Appel Statistical API — token en Bearer, direct (le proxy ne relaie que le token,
+   comme dans AgriSim où shFetch appelle SH.stats directement). */
+async function shFetch(payload){
+  const tk=await shAuth();
+  const r=await fetch(SH_STATS_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk,
+      'Accept':'application/json'},
+    body:JSON.stringify(payload)
+  });
+  if(!r.ok){ const t=await r.text(); throw new Error('API '+r.status+' — '+t.slice(0,160)); }
+  return r.json();
+}
+
+/* Evalscript sortie unique multi-bandes (format AgriSim : output "data" FLOAT32
+   + dataMask, lu via outputs.data.bands.B0/B1/...). Ordre des bandes = ordre indices. */
+function buildEvalscript(indices){
+  const formulas={
+    NDVI:'(B08-B04)/(B08+B04)',
+    EVI:'2.5*(B08-B04)/(B08+6*B04-7.5*B02+1)',
+    NDWI:'(B03-B08)/(B03+B08)',
+    NDMI:'(B08-B11)/(B08+B11)'
+  };
+  const exprs=indices.map(i=>formulas[i]).join(',');
+  return `//VERSION=3
+function setup(){return{input:[{bands:["B02","B03","B04","B08","B11","dataMask"]}],
+ output:[{id:"data",bands:${indices.length},sampleType:"FLOAT32"},{id:"dataMask",bands:1}]};}
+function evaluatePixel(s){const B02=s.B02,B03=s.B03,B04=s.B04,B08=s.B08,B11=s.B11;
+ return{data:[${exprs}],dataMask:[s.dataMask]};}`;
+}
+
+async function shStats(coords,start,end,indices,aggDays,cloud){
+  const dim=bboxDims(bboxOf(coords),512);
+  const payload={
+    input:{
+      bounds:{geometry:{type:"Polygon",coordinates:[ring(coords)]},
+        properties:{crs:"http://www.opengis.net/def/crs/OGC/1.3/CRS84"}},
+      data:[{type:"sentinel-2-l2a",
+        dataFilter:{maxCloudCoverage:cloud,mosaickingOrder:"leastCC"}}]
+    },
+    aggregation:{
+      timeRange:{from:start+"T00:00:00Z",to:end+"T23:59:59Z"},
+      aggregationInterval:{of:"P"+aggDays+"D"},
+      width:dim.w,height:dim.h,
+      evalscript:buildEvalscript(indices)
+    }
+  };
+  const j=await shFetch(payload);
+  // bandes: B0=indices[0], B1=indices[1], ... (lecture façon AgriSim)
+  return (j.data||[]).map(d=>{
+    const row={from:d.interval.from.slice(0,10),to:d.interval.to.slice(0,10)};
+    const bands=d.outputs?.data?.bands||{};
+    indices.forEach((ix,bi)=>{
+      const st=bands['B'+bi]?.stats;
+      if(st && st.mean!=null && !isNaN(st.mean)){
+        row[ix+'_mean']=r5(st.mean); row[ix+'_min']=r5(st.min);
+        row[ix+'_max']=r5(st.max); row[ix+'_std']=r5(st.stDev);
+        row[ix+'_n']=st.sampleCount-(st.noDataCount||0);
+      } else { row[ix+'_mean']=null; }
+    });
+    return row;
+  });
+}
+const r5=x=>x==null?null:+Number(x).toFixed(5);
+
+/* ---------- Collecte principale ---------- */
+$('run').onclick=async()=>{
+  $('run').disabled=true; $('exp-json').disabled=true; $('exp-csv').disabled=true;
+  $('log').innerHTML=''; prog(0);
+  const tbase=+$('tbase').value, tcap=+$('tcap').value;
+  const offS=+$('offStart').value, offE=+$('offEnd').value;
+  const aggDays=+$('agg').value, cloud=+$('cloud').value;
+  const indices=['NDVI','EVI','NDWI','NDMI'].filter(i=>$('i-'+i.toLowerCase()).checked);
+  const params={tbase,tcap,offStart:offS,offEnd:offE,aggDays,cloud,indices,
+    weather_source:'open-meteo-archive',index_source:'sentinel-hub-s2l2a',
+    gdd_method:'SICAM (cap tmax, floor tmin at tbase)'};
+
+  try{ await shAuth(); }
+  catch(err){ log('✗ '+err.message,'err');
+    log('→ Vérifie que sh_token.php répond (le même proxy qu\'AgriSim).','warn');
+    $('run').disabled=false; return; }
+
+  const results=[];
+  for(let k=0;k<PARCELS.length;k++){
+    const p=PARCELS[k];
+    const pill=document.querySelector('#pill-'+p.idx);
+    prog((k+1)/PARCELS.length);
+    // imputation : si une date manque/invalide, on prend la moyenne des autres
+    let datePlant=p.meta.date_plantation, dateRec=p.meta.date_recolte;
+    const imputed=[];
+    if(!validDate(datePlant)){ datePlant=MEAN_PLANT; imputed.push('plantation'); }
+    if(!validDate(dateRec)){ dateRec=MEAN_RECOLTE; imputed.push('récolte'); }
+    if((!validDate(datePlant)||!validDate(dateRec))){
+      // aucune moyenne disponible (cas extrême : tout l'Excel sans dates)
+      log(`⊘ ${p.id}: dates invalides et aucune moyenne de repli`,'warn');
+      results.push({parcelle:p.id,meta:p.meta,centroid:null,index_window:null,
+        weather:null,indices:null,errors:['dates invalides, pas de repli']});
+      continue;
+    }
+    try{
+      const [clat,clng]=centroid(p.coords);
+      const idxStart=addDays(datePlant,offS);
+      const idxEnd=addDays(dateRec,-offE);
+      log(`● ${p.id}  (${k+1}/${PARCELS.length})`+(imputed.length?`  [${imputed.join('+')} imputée(s)]`:''),imputed.length?'warn':'dim');
+      const rec={parcelle:p.id,meta:p.meta,centroid:{lat:+clat.toFixed(6),lng:+clng.toFixed(6)},
+        index_window:{from:idxStart,to:idxEnd},
+        dates_used:{plantation:datePlant,recolte:dateRec,imputed:imputed},
+        weather:null,indices:null,errors:[]};
+      // météo
+      try{
+        rec.weather=await fetchWeatherGDD(clat,clng,datePlant,dateRec,tbase,tcap);
+        const last=rec.weather.filter(w=>w.gdd_cum!=null).pop();
+        log(`   météo: ${rec.weather.length} j, GDD cumul ≈ ${last?last.gdd_cum:'?'}`,'l');
+      }catch(err){ rec.errors.push('weather:'+err.message); log('   ✗ météo '+err.message,'err'); }
+      // indices
+      try{
+        rec.indices=await shStats(p.coords,idxStart,idxEnd,indices,aggDays,cloud);
+        const ndvi=rec.indices.map(x=>x.NDVI_mean).filter(v=>v!=null);
+        log(`   indices: ${rec.indices.length} pas`+(ndvi.length?`, NDVI max ${Math.max(...ndvi).toFixed(3)}`:''),'l');
+        if(pill){pill.textContent='ok';pill.className='pill done';}
+      }catch(err){ rec.errors.push('indices:'+err.message); log('   ✗ indices '+err.message,'err'); }
+      results.push(rec);
+    }catch(err){
+      log(`   ✗ ${p.id}: ${err.message} — parcelle ignorée`,'err');
+      results.push({parcelle:p.id,meta:p.meta,centroid:null,index_window:null,
+        weather:null,indices:null,errors:['fatal:'+err.message]});
+    }
+    await new Promise(r=>setTimeout(r,120)); // throttle léger
+  }
+
+  COLLECTED={generated_at:new Date().toISOString(),params,parcels:results};
+  const okCount=results.filter(r=>r.indices&&r.indices.length).length;
+  log(`✔ Terminé — ${okCount}/${results.length} parcelles avec indices`,'ok');
+  $('exp-json').disabled=false; $('exp-csv').disabled=false; $('run').disabled=false;
+};
+
+/* ---------- Exports ---------- */
+function download(name,text,type){
+  const b=new Blob([text],{type}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click();
+  URL.revokeObjectURL(u);
+}
+$('exp-json').onclick=()=>{ if(COLLECTED) download('tomato_dataset.json',JSON.stringify(COLLECTED,null,2),'application/json'); };
+
+$('exp-csv').onclick=()=>{
+  if(!COLLECTED) return;
+  const idx=COLLECTED.params.indices;
+  // colonnes: identité parcelle + fenêtre indice + stats indice + météo au plus proche
+  const idxCols=[]; idx.forEach(i=>['mean','min','max','std','n'].forEach(s=>idxCols.push(i+'_'+s)));
+  const head=['parcelle','lat','lng','date_plantation','date_recolte','dates_imputed',
+    'surface_m2','densite_ha','season_id','intercalaire','interval_from','interval_to',
+    'days_after_planting','gdd_cum_at_interval','precip_cum_at_interval',...idxCols,'label'];
+  const rows=[head.join(',')];
+  COLLECTED.parcels.forEach(p=>{
+    if(!p.centroid) return; // parcelle échouée (dates invalides sans repli, etc.)
+    const du=p.dates_used||{};
+    const plant=du.plantation||p.meta.date_plantation;
+    const rec=du.recolte||p.meta.date_recolte;
+    const imp=(du.imputed&&du.imputed.length)?du.imputed.join('+'):'';
+    (p.indices||[]).forEach(iv=>{
+      const dap=plant? Math.round((new Date(iv.from)-new Date(plant))/864e5):'';
+      let gdd='',prc='';
+      if(p.weather){
+        const upto=p.weather.filter(w=>w.date<=iv.from);
+        if(upto.length){ gdd=upto[upto.length-1].gdd_cum;
+          prc=upto.reduce((a,w)=>a+(w.precip||0),0).toFixed(1); }
+      }
+      const line=[p.parcelle,p.centroid.lat,p.centroid.lng,plant,rec,imp,
+        p.meta.surface_m2,p.meta.densite_ha,p.meta.season_id,p.meta.intercalaire,
+        iv.from,iv.to,dap,gdd,prc,
+        ...idxCols.map(c=>iv[c]??''),'tomato'];
+      rows.push(line.join(','));
+    });
+  });
+  download('tomato_dataset.csv',rows.join('\n'),'text/csv');
+};
+
+log('Prêt. Importe l\'Excel des parcelles pour commencer.','dim');
+</script>
+</body>
+</html>
